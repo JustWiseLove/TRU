@@ -24,6 +24,7 @@ let scrolledToday = false;
 let isLooping = false;
 let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
 let searchQuery = "";
+let darkMode = localStorage.getItem("twltt_dark") === "1";
 let savedIndex = { truth: 0, proof: 0 };
 
 function todayKey() {
@@ -68,6 +69,17 @@ function saveLiked() { localStorage.setItem("twltt_liked", JSON.stringify([...li
 function updateLikedCount() {
   const e = document.getElementById("likedCount");
   e.textContent = liked.size ? ` ${liked.size}` : "";
+}
+
+
+function applyDarkMode(on) {
+  darkMode = !!on;
+  document.body.classList.toggle("dark", darkMode);
+  localStorage.setItem("twltt_dark", darkMode ? "1" : "0");
+  const icon = document.querySelector("#streakBox i");
+  if (icon) {
+    icon.className = darkMode ? "fa-solid fa-moon" : "fa-solid fa-sun";
+  }
 }
 
 function applyTheme(color) {
@@ -404,6 +416,7 @@ function setTab(tab) {
 
 function init() {
   applyTheme(profile.theme);
+  applyDarkMode(darkMode);
   buildFeed();
   renderAvatarDisplay();
   updateUsernameDisplay();
@@ -437,6 +450,9 @@ function init() {
     else setTab("scroll");
   };
 
+  document.getElementById("streakBox").onclick = () => {
+    applyDarkMode(!darkMode);
+  };
   document.getElementById("likeBtn").onclick = toggleLike;
   document.getElementById("shareBtn").onclick = shareCard;
   document.getElementById("userInfo").onclick = openProfileModal;
