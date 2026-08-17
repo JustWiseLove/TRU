@@ -10,7 +10,7 @@
 <body>
   <div class="top-bar">
     <div class="user-info" id="userInfo" title="Edit profile">
-      <div class="avatar" id="avatarDisplay">?</div>
+      <div class="avatar" id="avatarDisplay"><i class="fa-solid fa-user"></i></div>
       <div class="username" id="usernameDisplay">Set name</div>
     </div>
 
@@ -58,11 +58,18 @@
       </div>
       <div class="form-group">
         <label>Profile picture</label>
-        <div class="avatar-options" id="avatarOptions"></div>
+        <div class="avatar-preview" id="avatarPreview">
+          <i class="fa-solid fa-user"></i>
+        </div>
         <label class="upload-btn">
           Upload photo
           <input type="file" id="fileInput" accept="image/*">
         </label>
+        <button type="button" class="btn-reset-avatar" id="resetAvatarBtn">Use default icon</button>
+      </div>
+      <div class="form-group">
+        <label>Select Theme</label>
+        <div class="theme-options" id="themeOptions"></div>
       </div>
       <div class="profile-stats">
         <div class="stat-row">
