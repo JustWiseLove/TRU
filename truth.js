@@ -1,4 +1,4 @@
-const truthsCards = [
+const truthCards = [
   { id:"1a",num:1,category:"The Future",text:"Current events and attitudes indicate a change is near.",ref:"Matthew 24:3",quote:"While he was sitting on the Mount of Olives, the disciples approached him privately, saying: “Tell us, when will these things be, and what will be the sign of your presence and of the conclusion of the system of things?”" },
   { id:"1b",num:1,category:"The Future",text:"Current events and attitudes indicate a change is near.",ref:"Matthew 24:7, 8",quote:"“For nation will rise against nation and kingdom against kingdom, and there will be food shortages and earthquakes in one place after another. All these things are a beginning of pangs of distress.”" },
   { id:"1c",num:1,category:"The Future",text:"Current events and attitudes indicate a change is near.",ref:"Luke 21:10, 11",quote:"Then he said to them: “Nation will rise against nation, and kingdom against kingdom. There will be great earthquakes, and in one place after another food shortages and pestilences; and there will be fearful sights and from heaven great signs.”" },
