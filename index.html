@@ -17,6 +17,7 @@
     <div class="tabs">
       <div class="tab active" data-tab="scroll" id="tabScroll">Scroll</div>
       <div class="tab" data-tab="liked" id="tabLiked">Liked<span class="tab-count" id="likedCount"></span></div>
+      <div class="tab" data-tab="search" id="tabSearch">Search</div>
     </div>
 
     <div class="streak-box" id="streakBox">
@@ -24,15 +25,10 @@
     </div>
   </div>
 
-  <div class="left-actions" id="leftActions">
-    <div class="action-btn group-btn active" id="groupTruth" data-group="truth">
-      <div class="action-icon"><i class="fa-solid fa-book-open"></i></div>
-      <div class="action-label">Truth</div>
-    </div>
-    <div class="action-btn group-btn" id="groupProof" data-group="proof">
-      <div class="action-icon"><i class="fa-solid fa-lightbulb"></i></div>
-      <div class="action-label">Proof</div>
-    </div>
+  <div class="search-bar" id="searchBar">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input type="text" id="searchInput" placeholder="Search scriptures, topics..." autocomplete="off">
+    <button type="button" id="clearSearch" class="clear-search" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
   </div>
 
   <div class="side-actions" id="sideActions">
@@ -48,6 +44,11 @@
 
   <div class="feed" id="feed"></div>
   <div class="toast" id="toast"></div>
+
+  <div class="bottom-nav" id="bottomNav">
+    <div class="bottom-tab active" id="groupTruth" data-group="truth">Truth</div>
+    <div class="bottom-tab" id="groupProof" data-group="proof">Proof</div>
+  </div>
 
   <div class="modal-overlay" id="profileModal">
     <div class="modal">
