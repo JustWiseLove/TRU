@@ -6,7 +6,7 @@ const themes = [
   {name:"Yellow", color:"#f9a825", soft:"#fffde7", dark:"#c17900"},
   {name:"Blue",   color:"#1565c0", soft:"#e3f2fd", dark:"#0d47a1"},
   {name:"Violet", color:"#6a1b9a", soft:"#f3e5f5", dark:"#4a148c"},
-  {name:"Pink",   color:"#ad1457", soft:"#fce4ec", dark:"#880e4f"}
+  {name:"Pink", color:"#e91e63", soft:"#fce4ec", dark:"#c2185b"}
 ];
 
 let profile = {
