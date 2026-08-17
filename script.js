@@ -1,9 +1,9 @@
 const themes = [
   {name:"Black",  color:"#1a1a1a", soft:"#f0f0f0", dark:"#000000"},
-  {name:"Green",  color:"#008000", soft:"#e8f5e9", dark:"#006600"},
   {name:"Red",    color:"#c62828", soft:"#ffebee", dark:"#8e0000"},
   {name:"Orange", color:"#ef6c00", soft:"#fff3e0", dark:"#b53d00"},
   {name:"Yellow", color:"#f9a825", soft:"#fffde7", dark:"#c17900"},
+  {name:"Green",  color:"#008000", soft:"#e8f5e9", dark:"#006600"},
   {name:"Blue",   color:"#1565c0", soft:"#e3f2fd", dark:"#0d47a1"},
   {name:"Violet", color:"#6a1b9a", soft:"#f3e5f5", dark:"#4a148c"},
   {name:"Pink",   color:"#e91e63", soft:"#fce4ec", dark:"#c2185b"}
@@ -707,7 +707,6 @@ function init() {
     showToast(audioOn ? "Audio on" : "Saved");
   };
 
-  document.getElementById("shareProfileBtn").onclick = shareProfile;
   document.getElementById("fileInput").onchange = e => {
     const f = e.target.files[0]; if (!f) return;
     if (f.size > 2 * 1024 * 1024) { alert("Image under 2 MB please."); return; }
