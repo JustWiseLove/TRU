@@ -1,6 +1,6 @@
 const themes = [
-  {name:"Green",  color:"#008000", soft:"#e8f5e9", dark:"#006600"},
   {name:"Black",  color:"#1a1a1a", soft:"#f0f0f0", dark:"#000000"},
+  {name:"Green",  color:"#008000", soft:"#e8f5e9", dark:"#006600"},
   {name:"Red",    color:"#c62828", soft:"#ffebee", dark:"#8e0000"},
   {name:"Orange", color:"#ef6c00", soft:"#fff3e0", dark:"#b53d00"},
   {name:"Yellow", color:"#f9a825", soft:"#fffde7", dark:"#c17900"},
@@ -13,7 +13,7 @@ let profile = {
   name: localStorage.getItem("twltt_name") || "",
   avatar: localStorage.getItem("twltt_avatar") || "",
   avatarType: localStorage.getItem("twltt_avatarType") || "icon",
-  theme: localStorage.getItem("twltt_theme") || "#008000"
+  theme: localStorage.getItem("twltt_theme") || "#1a1a1a"
 };
 let liked = new Set(JSON.parse(localStorage.getItem("twltt_liked") || "[]"));
 let currentTab = "scroll";
@@ -23,9 +23,17 @@ let currentIndex = 0;
 let scrolledToday = false;
 let isLooping = false;
 let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
+let totalShares = parseInt(localStorage.getItem("twltt_shares") || "0", 10);
 let searchQuery = "";
 let darkMode = localStorage.getItem("twltt_dark") === "1";
 let savedIndex = { truth: 0, proof: 0 };
+let isSpeaking = false;
+let preferredVoice = null;
+let audioOn = localStorage.getItem("twltt_audio") === "1";
+let cardOrder = localStorage.getItem("twltt_order") || "default";
+let shuffledCache = { truth: null, proof: null };
+let autoSpeakTimer = null;
+let lastSpokenId = null;
 
 function todayKey() {
   const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
@@ -49,6 +57,11 @@ function incrementScrollEXP() {
   localStorage.setItem("twltt_scrolls", totalScrolls);
   const e = document.getElementById("scrollEXP"); if (e) e.textContent = totalScrolls;
 }
+function incrementShares() {
+  totalShares++;
+  localStorage.setItem("twltt_shares", totalShares);
+  const e = document.getElementById("shareCount"); if (e) e.textContent = totalShares;
+}
 function updateTodayCheck() {
   const c = document.getElementById("todayCheck");
   if (c) c.innerHTML = getDaysSet().has(todayKey()) ? '<i class="fa-solid fa-square-check"></i>' : '<i class="fa-regular fa-square"></i>';
@@ -69,17 +82,8 @@ function saveLiked() { localStorage.setItem("twltt_liked", JSON.stringify([...li
 function updateLikedCount() {
   const e = document.getElementById("likedCount");
   e.textContent = liked.size ? ` ${liked.size}` : "";
-}
-
-
-function applyDarkMode(on) {
-  darkMode = !!on;
-  document.body.classList.toggle("dark", darkMode);
-  localStorage.setItem("twltt_dark", darkMode ? "1" : "0");
-  const icon = document.querySelector("#streakBox i");
-  if (icon) {
-    icon.className = darkMode ? "fa-solid fa-moon" : "fa-solid fa-sun";
-  }
+  const s = document.getElementById("likedStat");
+  if (s) s.textContent = liked.size;
 }
 
 function applyTheme(color) {
@@ -88,6 +92,15 @@ function applyTheme(color) {
   document.documentElement.style.setProperty("--theme-dark", t.dark);
   document.documentElement.style.setProperty("--theme-soft", t.soft);
   profile.theme = t.color;
+  document.body.setAttribute("data-theme", t.name.toLowerCase());
+}
+
+function applyDarkMode(on) {
+  darkMode = !!on;
+  document.body.classList.toggle("dark", darkMode);
+  localStorage.setItem("twltt_dark", darkMode ? "1" : "0");
+  const icon = document.querySelector("#streakBox i");
+  if (icon) icon.className = darkMode ? "fa-solid fa-moon" : "fa-solid fa-sun";
 }
 
 function allCards() {
@@ -108,25 +121,160 @@ function getSourceLabel(card) {
   return "Truth";
 }
 
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function getGroupCards(group) {
+  const base = group === "truth"
+    ? (typeof truthCards !== "undefined" ? truthCards : [])
+    : (typeof proofCards !== "undefined" ? proofCards : []);
+  if (cardOrder === "shuffle") {
+    if (!shuffledCache[group] || shuffledCache[group].length !== base.length) {
+      shuffledCache[group] = shuffleArray(base);
+    }
+    return shuffledCache[group];
+  }
+  return base;
+}
+
+function pickBestVoice() {
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  const prefer = ["Alex", "Aaron", "Daniel", "Fred", "Google UK English Male", "Microsoft David", "Microsoft Mark"];
+  for (const name of prefer) {
+    const v = voices.find(x => x.name.includes(name) && x.lang.startsWith("en"));
+    if (v) return v;
+  }
+  const maleHints = /alex|aaron|daniel|fred|david|mark|male/i;
+  const m = voices.find(x => x.lang.startsWith("en") && maleHints.test(x.name));
+  if (m) return m;
+  return voices.find(x => x.lang === "en-US") || voices.find(x => x.lang.startsWith("en")) || voices[0];
+}
+
+function loadVoices() { preferredVoice = pickBestVoice(); }
+if (typeof speechSynthesis !== "undefined") {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function stopSpeaking() {
+  if (autoSpeakTimer) { clearTimeout(autoSpeakTimer); autoSpeakTimer = null; }
+  if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+  isSpeaking = false;
+  document.querySelectorAll(".scripture-quote .word.active").forEach(w => w.classList.remove("active"));
+}
+
+function wrapQuoteWords(quoteEl, text) {
+  const words = text.split(/(\s+)/);
+  quoteEl.innerHTML = words.map(w => /^\s+$/.test(w) ? w : `<span class="word">${w}</span>`).join("");
+  return [...quoteEl.querySelectorAll(".word")];
+}
+
+function speakCurrentCard(force) {
+  if (typeof speechSynthesis === "undefined") return;
+  if (!currentCards.length || currentTab === "search") return;
+  if (!force && !audioOn) return;
+
+  const card = currentCards[currentIndex % currentCards.length];
+  if (!card || !card.quote) return;
+  if (!force && lastSpokenId === card.id && isSpeaking) return;
+
+  // iOS often pauses the synthesis engine; resume before speaking
+  try { speechSynthesis.resume(); } catch (e) {}
+  if (!preferredVoice) loadVoices();
+
+  stopSpeaking();
+  lastSpokenId = card.id;
+
+  const feed = document.getElementById("feed");
+  const visibleCards = feed.querySelectorAll(".card");
+  let quoteEl = null;
+  for (const c of visibleCards) {
+    if (parseInt(c.dataset.index, 10) === currentIndex) {
+      quoteEl = c.querySelector(".scripture-quote");
+      break;
+    }
+  }
+  if (!quoteEl) {
+    for (const c of visibleCards) {
+      if (c.dataset.id === card.id) { quoteEl = c.querySelector(".scripture-quote"); break; }
+    }
+  }
+
+  const words = quoteEl ? wrapQuoteWords(quoteEl, card.quote) : [];
+  const utter = new SpeechSynthesisUtterance(card.quote);
+  if (!preferredVoice) preferredVoice = pickBestVoice();
+  if (preferredVoice) utter.voice = preferredVoice;
+  utter.rate = 0.95;
+  utter.pitch = 0.98;
+  utter.lang = (preferredVoice && preferredVoice.lang) || "en-US";
+
+  let wordIndex = 0;
+  utter.onboundary = (e) => {
+    if (e.name !== "word" || !words.length) return;
+    words.forEach(w => w.classList.remove("active"));
+    if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
+  };
+
+  const approxMs = Math.max(180, (card.quote.length / Math.max(card.quote.split(/\s+/).length, 1)) * 55);
+  let fallbackTimer = null;
+  const startFallback = () => {
+    if (!words.length) return;
+    fallbackTimer = setInterval(() => {
+      if (!isSpeaking) { clearInterval(fallbackTimer); return; }
+      words.forEach(w => w.classList.remove("active"));
+      if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
+      else clearInterval(fallbackTimer);
+    }, approxMs / 0.95);
+  };
+
+  utter.onstart = () => {
+    isSpeaking = true;
+    setTimeout(() => { if (isSpeaking && wordIndex < 2) startFallback(); }, 400);
+  };
+  utter.onend = () => {
+    if (fallbackTimer) clearInterval(fallbackTimer);
+    isSpeaking = false;
+    if (quoteEl) quoteEl.textContent = card.quote;
+  };
+  utter.onerror = () => {
+    if (fallbackTimer) clearInterval(fallbackTimer);
+    isSpeaking = false;
+    if (quoteEl) quoteEl.textContent = card.quote;
+  };
+
+  speechSynthesis.speak(utter);
+}
+
+function scheduleAutoSpeak() {
+  if (!audioOn || currentTab !== "scroll") return;
+  if (autoSpeakTimer) clearTimeout(autoSpeakTimer);
+  autoSpeakTimer = setTimeout(() => {
+    if (audioOn && currentTab === "scroll" && !isSpeaking) {
+      try { speechSynthesis.resume(); } catch (e) {}
+      speakCurrentCard(true);
+    }
+  }, 600);
+}
+
 function buildFeed() {
   const feed = document.getElementById("feed");
   feed.innerHTML = "";
   feed.classList.toggle("search-mode", currentTab === "search");
 
   const searchBar = document.getElementById("searchBar");
-  if (currentTab === "search") {
-    searchBar.classList.add("visible");
-  } else {
-    searchBar.classList.remove("visible");
-  }
+  if (currentTab === "search") searchBar.classList.add("visible");
+  else searchBar.classList.remove("visible");
 
-  // Bottom nav: show for Scroll (group switcher), hide or keep for others
   const bottomNav = document.getElementById("bottomNav");
-  if (currentTab === "scroll") {
-    bottomNav.classList.remove("hidden");
-  } else {
-    bottomNav.classList.add("hidden");
-  }
+  if (currentTab === "scroll") bottomNav.classList.remove("hidden");
+  else bottomNav.classList.add("hidden");
 
   if (currentTab === "liked") {
     currentCards = allCards().filter(c => liked.has(c.id));
@@ -134,9 +282,7 @@ function buildFeed() {
     const q = searchQuery.trim();
     currentCards = q ? allCards().filter(c => cardMatches(c, q)) : [];
   } else {
-    currentCards = currentGroup === "truth"
-      ? (typeof truthCards !== "undefined" ? truthCards : [])
-      : (typeof proofCards !== "undefined" ? proofCards : []);
+    currentCards = getGroupCards(currentGroup);
   }
 
   if (!currentCards.length) {
@@ -185,13 +331,11 @@ function buildFeed() {
     if (start < 0 || start >= maxIdx) start = 0;
     currentIndex = start;
     setupScrollTracking();
-    // Jump to saved card after layout
     requestAnimationFrame(() => {
       const ff = document.getElementById("feed");
       const cards = ff.querySelectorAll(".card");
-      if (cards[start]) {
-        ff.scrollTop = cards[start].offsetTop;
-      }
+      if (cards[start]) ff.scrollTop = cards[start].offsetTop;
+      scheduleAutoSpeak();
     });
   } else {
     feed.scrollTop = 0;
@@ -217,13 +361,18 @@ function setupScrollTracking() {
     es.forEach(e => {
       if (e.isIntersecting) {
         const idx = parseInt(e.target.dataset.index, 10);
-        if (idx !== currentIndex) incrementScrollEXP();
+        if (idx !== currentIndex) {
+          stopSpeaking();
+          incrementScrollEXP();
+          lastSpokenId = null;
+        }
         currentIndex = idx;
         if (currentTab === "scroll") {
           savedIndex[currentGroup] = idx % Math.max(currentCards.length, 1);
         }
         updateLikeButton();
         if (idx > 0 || scrolledToday) markScrolledToday();
+        if (idx !== currentIndex || true) scheduleAutoSpeak();
       }
     });
   }, {root: ff, threshold: 0.55});
@@ -263,11 +412,6 @@ function shareCard() {
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#f7faf7"; ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#ffffff";
-  roundRect(ctx, 60, 180, w - 120, h - 360, 24);
-  ctx.fill();
-
   function roundRect(ctx, x, y, width, height, radius) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -278,47 +422,123 @@ function shareCard() {
     ctx.closePath();
   }
 
-  function wrap(txt, x, y, mw, lh) {
-    const words = txt.split(" "); let line = "", lines = [];
+  function wrap(txt, x, y, mw, lh, align) {
+    const words = txt.split(" ");
+    let line = "", lines = [];
     for (let n = 0; n < words.length; n++) {
       const test = line + words[n] + " ";
-      if (ctx.measureText(test).width > mw && n > 0) { lines.push(line); line = words[n] + " "; }
+      if (ctx.measureText(test).width > mw && n > 0) { lines.push(line.trim()); line = words[n] + " "; }
       else line = test;
     }
-    lines.push(line);
-    lines.forEach((l, i) => ctx.fillText(l.trim(), x, y + i * lh));
+    lines.push(line.trim());
+    lines.forEach((l, i) => {
+      if (align === "center") ctx.fillText(l, x, y + i * lh);
+      else ctx.fillText(l, x, y + i * lh);
+    });
     return lines.length * lh;
   }
 
-  let y = 280;
-  ctx.fillStyle = themeColor; ctx.font = "bold 48px -apple-system,sans-serif"; ctx.textAlign = "center";
-  ctx.fillText(t.ref, w / 2, y); y += 70;
+  // Background
+  ctx.fillStyle = "#f0f4f0";
+  ctx.fillRect(0, 0, w, h);
 
-  ctx.fillStyle = themeSoft;
-  ctx.fillRect(100, y - 10, w - 200, 200);
+  // Soft accent orbs
+  ctx.fillStyle = themeColor + "18";
+  ctx.beginPath(); ctx.arc(200, 300, 280, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(900, 1600, 320, 0, Math.PI * 2); ctx.fill();
+
+  // White card
+  const cardX = 70, cardY = 220, cardW = w - 140, cardH = h - 480;
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, cardX, cardY, cardW, cardH, 28);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+
+  // Top accent bar
   ctx.fillStyle = themeColor;
-  ctx.fillRect(100, y - 10, 8, 200);
+  roundRect(ctx, cardX, cardY, cardW, 12, 0);
+  ctx.fill();
+  ctx.fillRect(cardX, cardY, cardW, 12);
 
-  ctx.fillStyle = "#333"; ctx.font = "italic 36px -apple-system,sans-serif"; ctx.textAlign = "left";
-  const qH = wrap(t.quote, 130, y + 40, w - 260, 48);
-  y += Math.max(qH, 180) + 50;
+  let y = cardY + 80;
 
-  ctx.fillStyle = "#555"; ctx.font = "32px -apple-system,sans-serif"; ctx.textAlign = "center";
-  y += wrap(t.text, w / 2, y, w - 200, 44) + 50;
+  // Reference
+  ctx.fillStyle = themeColor;
+  ctx.font = "bold 52px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(t.ref, w / 2, y);
+  y += 50;
 
-  ctx.fillStyle = themeColor; ctx.font = "bold 26px -apple-system,sans-serif";
-  ctx.fillText(t.category.toUpperCase(), w / 2, y); y += 50;
+  // Quote box
+  const quoteBoxTop = y;
+  ctx.fillStyle = themeSoft;
+  roundRect(ctx, cardX + 40, quoteBoxTop, cardW - 80, 10, 12);
+  // measure quote first
+  ctx.font = "italic 38px -apple-system, sans-serif";
+  ctx.textAlign = "left";
+  const quoteLines = [];
+  {
+    const words = t.quote.split(" ");
+    let line = "";
+    const mw = cardW - 140;
+    for (let n = 0; n < words.length; n++) {
+      const test = line + words[n] + " ";
+      if (ctx.measureText(test).width > mw && n > 0) { quoteLines.push(line.trim()); line = words[n] + " "; }
+      else line = test;
+    }
+    quoteLines.push(line.trim());
+  }
+  const quoteH = Math.max(quoteLines.length * 52 + 48, 140);
+  ctx.fillStyle = themeSoft;
+  roundRect(ctx, cardX + 40, quoteBoxTop, cardW - 80, quoteH, 16);
+  ctx.fill();
+  ctx.fillStyle = themeColor;
+  ctx.fillRect(cardX + 40, quoteBoxTop + 16, 8, quoteH - 32);
 
-  ctx.fillStyle = "#888"; ctx.font = "24px -apple-system,sans-serif";
+  ctx.fillStyle = "#222";
+  ctx.font = "italic 38px -apple-system, sans-serif";
+  quoteLines.forEach((l, i) => ctx.fillText(l, cardX + 70, quoteBoxTop + 52 + i * 52));
+  y = quoteBoxTop + quoteH + 50;
+
+  // Teaching text
+  ctx.fillStyle = "#555";
+  ctx.font = "34px -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  y += wrap(t.text, w / 2, y, cardW - 100, 46, "center") + 40;
+
+  // Category pill
+  ctx.font = "bold 28px -apple-system, sans-serif";
+  const cat = t.category.toUpperCase();
+  const catW = ctx.measureText(cat).width + 40;
+  ctx.fillStyle = themeSoft;
+  roundRect(ctx, (w - catW) / 2, y - 28, catW, 44, 22);
+  ctx.fill();
+  ctx.fillStyle = themeColor;
+  ctx.fillText(cat, w / 2, y);
+  y += 60;
+
+  // Meta
+  ctx.fillStyle = "#999";
+  ctx.font = "26px -apple-system, sans-serif";
   ctx.fillText(`${getSourceLabel(t)} ${t.num}`, w / 2, y);
 
+  // Footer branding
+  ctx.fillStyle = themeColor;
+  ctx.font = "bold 28px -apple-system, sans-serif";
+  ctx.fillText("Truths We Love to Teach", w / 2, h - 100);
+  ctx.fillStyle = "#aaa";
+  ctx.font = "22px -apple-system, sans-serif";
+  ctx.fillText("NWT", w / 2, h - 60);
+
   canvas.toBlob(blob => {
-    const file = new File([blob], `card-${t.ref.replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
+    incrementShares();
+    const file = new File([blob], `scripture-${t.ref.replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
     if (navigator.canShare && navigator.canShare({files: [file]})) {
       navigator.share({files: [file]}).catch(() => dl(canvas));
     } else dl(canvas);
   }, "image/png");
 }
+
 function dl(c) {
   const a = document.createElement("a");
   a.download = "scripture-card.png";
@@ -358,14 +578,21 @@ function updateUsernameDisplay() {
 
 function openProfileModal() {
   document.getElementById("nameInput").value = profile.name;
+  document.getElementById("audioToggle").checked = audioOn;
+  document.querySelectorAll(".seg-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.order === cardOrder);
+  });
   buildThemeOptions();
   updateAvatarPreview();
   updateDayCounter();
   updateTodayCheck();
   updateTimeLeft();
   document.getElementById("scrollEXP").textContent = totalScrolls;
+  document.getElementById("shareCount").textContent = totalShares;
+  document.getElementById("likedStat").textContent = liked.size;
   document.getElementById("profileModal").classList.add("open");
 }
+
 function closeProfileModal() {
   document.getElementById("profileModal").classList.remove("open");
 }
@@ -389,7 +616,7 @@ function buildThemeOptions() {
 }
 
 function shareProfile() {
-  const text = `${profile.name || "Friend"}'s Scripture Streak\nStreak: ${getDaysSet().size} days\nScrolls: ${totalScrolls} EXP\n\nTruths We Love to Teach`;
+  const text = `${profile.name || "Friend"}'s Scripture Profile\nStreak: ${getDaysSet().size} days\nScrolls: ${totalScrolls} EXP\nShares: ${totalShares}\nLiked: ${liked.size}\n\nTruths We Love to Teach`;
   if (navigator.share) {
     navigator.share({title: "My Scripture Profile", text}).catch(() => {
       navigator.clipboard.writeText(text); showToast("Copied!");
@@ -400,7 +627,7 @@ function shareProfile() {
 }
 
 function setTab(tab) {
-  // Save place on Scroll before leaving
+  stopSpeaking();
   if (currentTab === "scroll" && tab !== "scroll") {
     savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
   }
@@ -409,9 +636,7 @@ function setTab(tab) {
   const el = document.getElementById("tab" + tab.charAt(0).toUpperCase() + tab.slice(1));
   if (el) el.classList.add("active");
   buildFeed();
-  if (tab === "search") {
-    setTimeout(() => document.getElementById("searchInput").focus(), 100);
-  }
+  if (tab === "search") setTimeout(() => document.getElementById("searchInput").focus(), 100);
 }
 
 function init() {
@@ -430,9 +655,7 @@ function init() {
   document.getElementById("tabSearch").onclick = () => setTab("search");
 
   document.getElementById("groupTruth").onclick = () => {
-    if (currentTab === "scroll") {
-      savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
-    }
+    if (currentTab === "scroll") savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
     currentGroup = "truth";
     document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("groupTruth").classList.add("active");
@@ -440,9 +663,7 @@ function init() {
     else setTab("scroll");
   };
   document.getElementById("groupProof").onclick = () => {
-    if (currentTab === "scroll") {
-      savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
-    }
+    if (currentTab === "scroll") savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
     currentGroup = "proof";
     document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("groupProof").classList.add("active");
@@ -450,23 +671,42 @@ function init() {
     else setTab("scroll");
   };
 
-  document.getElementById("streakBox").onclick = () => {
-    applyDarkMode(!darkMode);
-  };
+  document.getElementById("streakBox").onclick = () => applyDarkMode(!darkMode);
   document.getElementById("likeBtn").onclick = toggleLike;
   document.getElementById("shareBtn").onclick = shareCard;
   document.getElementById("userInfo").onclick = openProfileModal;
   document.getElementById("cancelBtn").onclick = closeProfileModal;
+
   document.getElementById("saveBtn").onclick = () => {
     profile.name = document.getElementById("nameInput").value.trim() || "Friend";
+    audioOn = document.getElementById("audioToggle").checked;
+    const prevOrder = cardOrder;
+    const activeSeg = document.querySelector(".seg-btn.active");
+    cardOrder = activeSeg ? activeSeg.dataset.order : "default";
     localStorage.setItem("twltt_name", profile.name);
     localStorage.setItem("twltt_avatar", profile.avatar);
     localStorage.setItem("twltt_avatarType", profile.avatarType);
     localStorage.setItem("twltt_theme", profile.theme);
+    localStorage.setItem("twltt_audio", audioOn ? "1" : "0");
+    localStorage.setItem("twltt_order", cardOrder);
+    if (prevOrder !== cardOrder) {
+      shuffledCache = { truth: null, proof: null };
+      savedIndex = { truth: 0, proof: 0 };
+    }
     renderAvatarDisplay();
     updateUsernameDisplay();
     closeProfileModal();
+    if (currentTab === "scroll") buildFeed();
+    if (audioOn) {
+      // User gesture (Save tap) unlocks iOS speech â speak current card now
+      try { speechSynthesis.resume(); } catch (e) {}
+      setTimeout(() => speakCurrentCard(true), 100);
+    } else {
+      stopSpeaking();
+    }
+    showToast(audioOn ? "Audio on" : "Saved");
   };
+
   document.getElementById("shareProfileBtn").onclick = shareProfile;
   document.getElementById("fileInput").onchange = e => {
     const f = e.target.files[0]; if (!f) return;
@@ -488,7 +728,13 @@ function init() {
     if (e.target.id === "profileModal") closeProfileModal();
   };
 
-  // Search
+  document.getElementById("orderSegment").onclick = e => {
+    const btn = e.target.closest(".seg-btn");
+    if (!btn) return;
+    document.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  };
+
   const searchInput = document.getElementById("searchInput");
   const clearBtn = document.getElementById("clearSearch");
   let searchTimer;
@@ -496,9 +742,7 @@ function init() {
     searchQuery = searchInput.value;
     clearBtn.style.display = searchQuery ? "block" : "none";
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      if (currentTab === "search") buildFeed();
-    }, 200);
+    searchTimer = setTimeout(() => { if (currentTab === "search") buildFeed(); }, 200);
   });
   clearBtn.onclick = () => {
     searchInput.value = "";
