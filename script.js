@@ -24,6 +24,7 @@ let scrolledToday = false;
 let isLooping = false;
 let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
 let searchQuery = "";
+let savedIndex = { truth: 0, proof: 0 };
 
 function todayKey() {
   const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
@@ -166,9 +167,24 @@ function buildFeed() {
     feed.appendChild(card);
   });
 
-  feed.scrollTop = 0;
-  currentIndex = 0;
-  if (isSnap) setupScrollTracking();
+  if (isSnap) {
+    const maxIdx = currentCards.length;
+    let start = savedIndex[currentGroup] || 0;
+    if (start < 0 || start >= maxIdx) start = 0;
+    currentIndex = start;
+    setupScrollTracking();
+    // Jump to saved card after layout
+    requestAnimationFrame(() => {
+      const ff = document.getElementById("feed");
+      const cards = ff.querySelectorAll(".card");
+      if (cards[start]) {
+        ff.scrollTop = cards[start].offsetTop;
+      }
+    });
+  } else {
+    feed.scrollTop = 0;
+    currentIndex = 0;
+  }
   updateLikeButton();
 }
 
@@ -191,6 +207,9 @@ function setupScrollTracking() {
         const idx = parseInt(e.target.dataset.index, 10);
         if (idx !== currentIndex) incrementScrollEXP();
         currentIndex = idx;
+        if (currentTab === "scroll") {
+          savedIndex[currentGroup] = idx % Math.max(currentCards.length, 1);
+        }
         updateLikeButton();
         if (idx > 0 || scrolledToday) markScrolledToday();
       }
@@ -369,6 +388,10 @@ function shareProfile() {
 }
 
 function setTab(tab) {
+  // Save place on Scroll before leaving
+  if (currentTab === "scroll" && tab !== "scroll") {
+    savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
+  }
   currentTab = tab;
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   const el = document.getElementById("tab" + tab.charAt(0).toUpperCase() + tab.slice(1));
@@ -394,6 +417,9 @@ function init() {
   document.getElementById("tabSearch").onclick = () => setTab("search");
 
   document.getElementById("groupTruth").onclick = () => {
+    if (currentTab === "scroll") {
+      savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
+    }
     currentGroup = "truth";
     document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("groupTruth").classList.add("active");
@@ -401,6 +427,9 @@ function init() {
     else setTab("scroll");
   };
   document.getElementById("groupProof").onclick = () => {
+    if (currentTab === "scroll") {
+      savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
+    }
     currentGroup = "proof";
     document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("groupProof").classList.add("active");
