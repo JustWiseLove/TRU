@@ -135,6 +135,8 @@ html, body {
   gap: 4px;
   border: 1px solid color-mix(in srgb, var(--theme) 25%, transparent);
   color: var(--theme);
+  cursor: pointer;
+  user-select: none;
 }
 
 .streak-box i {
@@ -656,4 +658,125 @@ html, body {
 
 .bottom-nav.hidden {
   display: none;
+}
+
+/* ========== DARK MODE ========== */
+body.dark {
+  --text: #e8e8e8;
+  --text-light: #b0b0b0;
+  --card-bg: #121212;
+  --white: #1e1e1e;
+  background: #0a0a0a;
+  color: var(--text);
+}
+
+body.dark .top-bar {
+  background: linear-gradient(to bottom, rgba(18,18,18,0.97), rgba(18,18,18,0.85));
+}
+
+body.dark .username {
+  color: var(--text);
+}
+
+body.dark .tab {
+  color: #777;
+}
+
+body.dark .tab.active {
+  color: var(--theme);
+}
+
+body.dark .search-bar {
+  background: rgba(18,18,18,0.97);
+  border-bottom-color: #2a2a2a;
+}
+
+body.dark .search-bar input {
+  color: var(--text);
+}
+
+body.dark .search-bar input::placeholder {
+  color: #666;
+}
+
+body.dark .feed {
+  background: #0a0a0a;
+}
+
+body.dark .card {
+  background: var(--card-bg);
+}
+
+body.dark .card-content {
+  background: var(--white);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+body.dark .scripture-quote {
+  color: var(--text);
+}
+
+body.dark .truth-text {
+  color: var(--text-light);
+}
+
+body.dark .card-meta {
+  color: #888;
+}
+
+body.dark .bottom-nav {
+  background: #1a1a1a;
+  border-top-color: #2a2a2a;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.3);
+}
+
+body.dark .bottom-tab {
+  color: #777;
+}
+
+body.dark .bottom-tab.active {
+  color: var(--theme);
+}
+
+body.dark .action-icon {
+  background: #2a2a2a;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  border-color: color-mix(in srgb, var(--theme) 25%, transparent);
+}
+
+body.dark .action-label {
+  color: #ccc;
+}
+
+body.dark .modal {
+  background: #1e1e1e;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+}
+
+body.dark .form-group input[type="text"] {
+  background: #2a2a2a;
+  border-color: #444;
+  color: var(--text);
+}
+
+body.dark .btn-secondary {
+  background: #333;
+  color: var(--text);
+}
+
+body.dark .empty-state {
+  background: var(--card-bg);
+  color: #888;
+}
+
+body.dark .empty-state h3 {
+  color: var(--text);
+}
+
+body.dark .swipe-hint {
+  color: #666;
+}
+
+body.dark .clear-search {
+  color: #888;
 }
