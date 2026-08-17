@@ -6,7 +6,7 @@ const themes = [
   {name:"Yellow", color:"#f9a825", soft:"#fffde7", dark:"#c17900"},
   {name:"Blue",   color:"#1565c0", soft:"#e3f2fd", dark:"#0d47a1"},
   {name:"Violet", color:"#6a1b9a", soft:"#f3e5f5", dark:"#4a148c"},
-  {name:"Pink", color:"#e91e63", soft:"#fce4ec", dark:"#c2185b"}
+  {name:"Pink",   color:"#e91e63", soft:"#fce4ec", dark:"#c2185b"}
 ];
 
 let profile = {
@@ -23,6 +23,7 @@ let currentIndex = 0;
 let scrolledToday = false;
 let isLooping = false;
 let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
+let searchQuery = "";
 
 function todayKey() {
   const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
@@ -57,7 +58,6 @@ function updateTimeLeft() {
   const diff = next - est;
   el.textContent = `${Math.floor(diff/3600000)} HRS ${Math.floor((diff%3600000)/60000)} MINS`;
 }
-function getInitials(n) { return n ? n.trim().split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase() : "?"; }
 function showToast(m) {
   const t = document.getElementById("toast");
   t.textContent = m; t.classList.add("show");
@@ -77,43 +77,104 @@ function applyTheme(color) {
   profile.theme = t.color;
 }
 
+function allCards() {
+  return [...(typeof truthsCards !== "undefined" ? truthsCards : []), ...(typeof proofCards !== "undefined" ? proofCards : [])];
+}
+
+function cardMatches(card, q) {
+  if (!q) return false;
+  const s = q.toLowerCase();
+  return (card.ref && card.ref.toLowerCase().includes(s)) ||
+         (card.quote && card.quote.toLowerCase().includes(s)) ||
+         (card.text && card.text.toLowerCase().includes(s)) ||
+         (card.category && card.category.toLowerCase().includes(s));
+}
+
+function getSourceLabel(card) {
+  if (typeof proofCards !== "undefined" && proofCards.some(c => c.id === card.id)) return "Proof";
+  return "Truth";
+}
+
 function buildFeed() {
-  const feed = document.getElementById("feed"); feed.innerHTML = "";
-  if (currentTab === "liked") {
-    currentCards = [...(typeof truthsCards !== "undefined" ? truthsCards : []), ...(typeof proofCards !== "undefined" ? proofCards : [])].filter(c => liked.has(c.id));
+  const feed = document.getElementById("feed");
+  feed.innerHTML = "";
+  feed.classList.toggle("search-mode", currentTab === "search");
+
+  const searchBar = document.getElementById("searchBar");
+  if (currentTab === "search") {
+    searchBar.classList.add("visible");
   } else {
-    currentCards = currentGroup === "truth" ? (typeof truthsCards !== "undefined" ? truthsCards : []) : (typeof proofCards !== "undefined" ? proofCards : []);
+    searchBar.classList.remove("visible");
   }
+
+  // Bottom nav: show for Scroll (group switcher), hide or keep for others
+  const bottomNav = document.getElementById("bottomNav");
+  if (currentTab === "scroll") {
+    bottomNav.classList.remove("hidden");
+  } else {
+    bottomNav.classList.add("hidden");
+  }
+
+  if (currentTab === "liked") {
+    currentCards = allCards().filter(c => liked.has(c.id));
+  } else if (currentTab === "search") {
+    const q = searchQuery.trim();
+    currentCards = q ? allCards().filter(c => cardMatches(c, q)) : [];
+  } else {
+    currentCards = currentGroup === "truth"
+      ? (typeof truthsCards !== "undefined" ? truthsCards : [])
+      : (typeof proofCards !== "undefined" ? proofCards : []);
+  }
+
   if (!currentCards.length) {
-    feed.innerHTML = `<div class="empty-state"><div class="big-icon"><i class="fa-regular fa-heart"></i></div><h3>No liked cards yet</h3><p>Tap the heart on any card<br>to save it here.</p></div>`;
+    let emptyHtml = "";
+    if (currentTab === "liked") {
+      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-regular fa-heart"></i></div><h3>No liked cards yet</h3><p>Tap the heart on any card<br>to save it here.</p></div>`;
+    } else if (currentTab === "search") {
+      emptyHtml = searchQuery.trim()
+        ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results</h3><p>Try a different keyword.</p></div>`
+        : `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>Search</h3><p>Type a keyword to find<br>scriptures, topics, or text.</p></div>`;
+    } else {
+      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-book-open"></i></div><h3>No cards</h3></div>`;
+    }
+    feed.innerHTML = emptyHtml;
     document.getElementById("sideActions").style.display = "none";
-    document.getElementById("leftActions").style.display = currentTab === "liked" ? "none" : "flex";
     return;
   }
-  document.getElementById("sideActions").style.display = "flex";
-  document.getElementById("leftActions").style.display = currentTab === "liked" ? "none" : "flex";
-  const toRender = currentTab === "scroll" ? [...currentCards, ...currentCards] : currentCards;
-  const label = currentGroup === "proof" ? "Proof" : "Truth";
+
+  document.getElementById("sideActions").style.display = currentTab === "search" ? "none" : "flex";
+
+  const isSnap = currentTab === "scroll";
+  const toRender = isSnap ? [...currentCards, ...currentCards] : currentCards;
+
   toRender.forEach((t, i) => {
     const card = document.createElement("div");
     card.className = "card";
-    card.dataset.index = i; card.dataset.id = t.id;
+    card.dataset.index = i;
+    card.dataset.id = t.id;
     const di = (i % currentCards.length) + 1;
+    const label = currentTab === "search" || currentTab === "liked"
+      ? getSourceLabel(t)
+      : (currentGroup === "proof" ? "Proof" : "Truth");
     card.innerHTML = `<div class="card-content">
       <div class="scripture-ref">${t.ref}</div>
       <div class="scripture-quote">${t.quote}</div>
       <div class="truth-text">${t.text}</div>
       <div class="category">${t.category}</div>
-      <div class="card-meta">${label} ${t.num} · Card ${di} of ${currentCards.length}</div>
-    </div>${i === 0 && currentTab === "scroll" ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
+      <div class="card-meta">${label} ${t.num} Â· Card ${di} of ${currentCards.length}</div>
+    </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
     feed.appendChild(card);
   });
-  feed.scrollTop = 0; currentIndex = 0; setupScrollTracking(); updateLikeButton();
+
+  feed.scrollTop = 0;
+  currentIndex = 0;
+  if (isSnap) setupScrollTracking();
+  updateLikeButton();
 }
 
 function updateLikeButton() {
   const btn = document.getElementById("likeBtn"), icon = document.getElementById("likeIcon");
-  if (!currentCards.length) return;
+  if (!currentCards.length || currentTab === "search") return;
   const id = currentCards[currentIndex % currentCards.length]?.id;
   if (liked.has(id)) { btn.classList.add("liked"); icon.innerHTML = '<i class="fa-solid fa-heart"></i>'; }
   else { btn.classList.remove("liked"); icon.innerHTML = '<i class="fa-regular fa-heart"></i>'; }
@@ -121,14 +182,16 @@ function updateLikeButton() {
 
 function setupScrollTracking() {
   const feed = document.getElementById("feed");
-  const nf = feed.cloneNode(true); feed.parentNode.replaceChild(nf, feed);
+  const nf = feed.cloneNode(true);
+  feed.parentNode.replaceChild(nf, feed);
   const ff = document.getElementById("feed"), fc = ff.querySelectorAll(".card");
   const obs = new IntersectionObserver(es => {
     es.forEach(e => {
       if (e.isIntersecting) {
         const idx = parseInt(e.target.dataset.index, 10);
         if (idx !== currentIndex) incrementScrollEXP();
-        currentIndex = idx; updateLikeButton();
+        currentIndex = idx;
+        updateLikeButton();
         if (idx > 0 || scrolledToday) markScrolledToday();
       }
     });
@@ -151,7 +214,7 @@ function setupScrollTracking() {
 }
 
 function toggleLike() {
-  if (!currentCards.length) return;
+  if (!currentCards.length || currentTab === "search") return;
   const id = currentCards[currentIndex % currentCards.length].id;
   if (liked.has(id)) { liked.delete(id); showToast("Removed from Liked"); }
   else { liked.add(id); showToast("Added to Liked"); }
@@ -160,7 +223,7 @@ function toggleLike() {
 }
 
 function shareCard() {
-  if (!currentCards.length) return;
+  if (!currentCards.length || currentTab === "search") return;
   const t = currentCards[currentIndex % currentCards.length];
   const themeColor = getComputedStyle(document.documentElement).getPropertyValue("--theme").trim() || "#008000";
   const themeSoft = getComputedStyle(document.documentElement).getPropertyValue("--theme-soft").trim() || "#e8f5e9";
@@ -216,7 +279,7 @@ function shareCard() {
   ctx.fillText(t.category.toUpperCase(), w / 2, y); y += 50;
 
   ctx.fillStyle = "#888"; ctx.font = "24px -apple-system,sans-serif";
-  ctx.fillText(`${currentGroup === "proof" ? "Proof" : "Truth"} ${t.num}`, w / 2, y);
+  ctx.fillText(`${getSourceLabel(t)} ${t.num}`, w / 2, y);
 
   canvas.toBlob(blob => {
     const file = new File([blob], `card-${t.ref.replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
@@ -236,7 +299,6 @@ function dl(c) {
 function renderAvatarDisplay() {
   const el = document.getElementById("avatarDisplay");
   el.innerHTML = "";
-  el.style.background = "";
   if (profile.avatarType === "image" && profile.avatar) {
     const i = document.createElement("img");
     i.src = profile.avatar;
@@ -306,6 +368,17 @@ function shareProfile() {
   }
 }
 
+function setTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  const el = document.getElementById("tab" + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (el) el.classList.add("active");
+  buildFeed();
+  if (tab === "search") {
+    setTimeout(() => document.getElementById("searchInput").focus(), 100);
+  }
+}
+
 function init() {
   applyTheme(profile.theme);
   buildFeed();
@@ -316,29 +389,23 @@ function init() {
   updateTodayCheck();
   setInterval(updateTimeLeft, 30000);
 
-  document.getElementById("tabScroll").onclick = () => {
-    currentTab = "scroll";
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.getElementById("tabScroll").classList.add("active");
-    buildFeed();
-  };
-  document.getElementById("tabLiked").onclick = () => {
-    currentTab = "liked";
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.getElementById("tabLiked").classList.add("active");
-    buildFeed();
-  };
+  document.getElementById("tabScroll").onclick = () => setTab("scroll");
+  document.getElementById("tabLiked").onclick = () => setTab("liked");
+  document.getElementById("tabSearch").onclick = () => setTab("search");
+
   document.getElementById("groupTruth").onclick = () => {
     currentGroup = "truth";
-    document.querySelectorAll(".group-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("groupTruth").classList.add("active");
     if (currentTab === "scroll") buildFeed();
+    else setTab("scroll");
   };
   document.getElementById("groupProof").onclick = () => {
     currentGroup = "proof";
-    document.querySelectorAll(".group-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
     document.getElementById("groupProof").classList.add("active");
     if (currentTab === "scroll") buildFeed();
+    else setTab("scroll");
   };
 
   document.getElementById("likeBtn").onclick = toggleLike;
@@ -375,6 +442,27 @@ function init() {
   document.getElementById("profileModal").onclick = e => {
     if (e.target.id === "profileModal") closeProfileModal();
   };
+
+  // Search
+  const searchInput = document.getElementById("searchInput");
+  const clearBtn = document.getElementById("clearSearch");
+  let searchTimer;
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value;
+    clearBtn.style.display = searchQuery ? "block" : "none";
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (currentTab === "search") buildFeed();
+    }, 200);
+  });
+  clearBtn.onclick = () => {
+    searchInput.value = "";
+    searchQuery = "";
+    clearBtn.style.display = "none";
+    buildFeed();
+    searchInput.focus();
+  };
+
   if (!profile.name) setTimeout(() => { if (!profile.name) openProfileModal(); }, 2000);
 }
 init();
