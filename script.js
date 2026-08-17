@@ -18,7 +18,7 @@ let profile = {
 let liked = new Set(JSON.parse(localStorage.getItem("twltt_liked") || "[]"));
 let currentTab = "scroll";
 let currentGroup = "truth";
-let currentCards = typeof truthsCards !== "undefined" ? truthsCards : [];
+let currentCards = typeof truthCards !== "undefined" ? truthCards : [];
 let currentIndex = 0;
 let scrolledToday = false;
 let isLooping = false;
@@ -78,7 +78,7 @@ function applyTheme(color) {
 }
 
 function allCards() {
-  return [...(typeof truthsCards !== "undefined" ? truthsCards : []), ...(typeof proofCards !== "undefined" ? proofCards : [])];
+  return [...(typeof truthCards !== "undefined" ? truthCards : []), ...(typeof proofCards !== "undefined" ? proofCards : [])];
 }
 
 function cardMatches(card, q) {
@@ -122,7 +122,7 @@ function buildFeed() {
     currentCards = q ? allCards().filter(c => cardMatches(c, q)) : [];
   } else {
     currentCards = currentGroup === "truth"
-      ? (typeof truthsCards !== "undefined" ? truthsCards : [])
+      ? (typeof truthCards !== "undefined" ? truthCards : [])
       : (typeof proofCards !== "undefined" ? proofCards : []);
   }
 
@@ -161,7 +161,7 @@ function buildFeed() {
       <div class="scripture-quote">${t.quote}</div>
       <div class="truth-text">${t.text}</div>
       <div class="category">${t.category}</div>
-      <div class="card-meta">${label} ${t.num} Â· Card ${di} of ${currentCards.length}</div>
+      <div class="card-meta">${label} ${t.num} | Card ${di} of ${currentCards.length}</div>
     </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
     feed.appendChild(card);
   });
