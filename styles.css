@@ -1111,3 +1111,20 @@ body.dark[data-theme="black"] .seg-btn.active {
 body.dark[data-theme="black"] .toggle input:checked + .toggle-slider {
   background: #888;
 }
+
+/* Black + dark: analytics card readable */
+body.dark[data-theme="black"] .profile-stats {
+  background: #2a2a2a;
+}
+body.dark[data-theme="black"] .stat-label {
+  color: #c0c0c0;
+}
+body.dark[data-theme="black"] .stat-value {
+  color: #ffffff;
+}
+body.dark[data-theme="black"] .stat-row + .stat-row {
+  border-top-color: #444;
+}
+body.dark[data-theme="black"] .profile-stats #todayCheck i {
+  color: #ffffff;
+}
