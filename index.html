@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Truths We Love to Teach</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="top-bar">
+    <div class="user-info" id="userInfo" title="Edit profile">
+      <div class="avatar" id="avatarDisplay">?</div>
+      <div class="username" id="usernameDisplay">Set name</div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="scroll" id="tabScroll">Scroll</div>
+      <div class="tab" data-tab="liked" id="tabLiked">Liked<span class="tab-count" id="likedCount"></span></div>
+    </div>
+
+    <div class="streak-box" id="streakBox">
+      <i class="fa-solid fa-fire"></i> Day <span id="dayCount">0</span>
+    </div>
+  </div>
+
+  <div class="left-actions" id="leftActions">
+    <div class="action-btn group-btn active" id="groupTruth" data-group="truth">
+      <div class="action-icon"><i class="fa-solid fa-book-open"></i></div>
+      <div class="action-label">Truth</div>
+    </div>
+    <div class="action-btn group-btn" id="groupProof" data-group="proof">
+      <div class="action-icon"><i class="fa-solid fa-lightbulb"></i></div>
+      <div class="action-label">Proof</div>
+    </div>
+  </div>
+
+  <div class="side-actions" id="sideActions">
+    <div class="action-btn" id="likeBtn">
+      <div class="action-icon" id="likeIcon"><i class="fa-regular fa-heart"></i></div>
+      <div class="action-label">Like</div>
+    </div>
+    <div class="action-btn" id="shareBtn">
+      <div class="action-icon"><i class="fa-solid fa-share"></i></div>
+      <div class="action-label">Share</div>
+    </div>
+  </div>
+
+  <div class="feed" id="feed"></div>
+  <div class="toast" id="toast"></div>
+
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal">
+      <h2>Your Profile</h2>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="nameInput" placeholder="Enter a name" maxlength="24">
+      </div>
+      <div class="form-group">
+        <label>Profile picture</label>
+        <div class="avatar-options" id="avatarOptions"></div>
+        <label class="upload-btn">
+          Upload photo
+          <input type="file" id="fileInput" accept="image/*">
+        </label>
+      </div>
+      <div class="profile-stats">
+        <div class="stat-row">
+          <span class="stat-label">Streak</span>
+          <span class="stat-value"><span id="profileStreak">0</span> <span id="todayCheck"><i class="fa-regular fa-square"></i></span></span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Time Left</span>
+          <span class="stat-value" id="timeLeft">-- HRS -- MINS</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Scrolls</span>
+          <span class="stat-value"><span id="scrollEXP">0</span> EXP</span>
+        </div>
+      </div>
+      <div class="modal-actions" style="flex-direction:column; gap:10px;">
+        <button class="btn btn-primary" id="shareProfileBtn">Share Profile</button>
+        <div style="display:flex; gap:12px;">
+          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="saveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="truth.js"></script>
+  <script src="proof.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
