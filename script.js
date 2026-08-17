@@ -109,11 +109,14 @@ function allCards() {
 
 function cardMatches(card, q) {
   if (!q) return false;
-  const s = q.toLowerCase();
-  return (card.ref && card.ref.toLowerCase().includes(s)) ||
-         (card.quote && card.quote.toLowerCase().includes(s)) ||
-         (card.text && card.text.toLowerCase().includes(s)) ||
-         (card.category && card.category.toLowerCase().includes(s));
+  const s = q.toLowerCase().trim();
+  if (!s) return false;
+  const hay = [
+    card.ref, card.quote, card.text, card.category,
+    card.num != null ? String(card.num) : "",
+    getSourceLabel(card)
+  ].filter(Boolean).join(" ").toLowerCase();
+  return hay.includes(s);
 }
 
 function getSourceLabel(card) {
@@ -291,7 +294,7 @@ function buildFeed() {
       emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-regular fa-heart"></i></div><h3>No liked cards yet</h3><p>Tap the heart on any card<br>to save it here.</p></div>`;
     } else if (currentTab === "search") {
       emptyHtml = searchQuery.trim()
-        ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results</h3><p>Try a different keyword.</p></div>`
+        ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results for "${searchQuery}"</h3><p>Try another word from a scripture,<br>topic, or teaching text.</p></div>`
         : `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>Search</h3><p>Type a keyword to find<br>scriptures, topics, or text.</p></div>`;
     } else {
       emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-book-open"></i></div><h3>No cards</h3></div>`;
@@ -737,17 +740,28 @@ function init() {
   const searchInput = document.getElementById("searchInput");
   const clearBtn = document.getElementById("clearSearch");
   let searchTimer;
-  searchInput.addEventListener("input", () => {
-    searchQuery = searchInput.value;
+  function runSearch() {
+    searchQuery = (searchInput.value || "").trim();
     clearBtn.style.display = searchQuery ? "block" : "none";
+    if (currentTab !== "search") setTab("search");
+    else buildFeed();
+  }
+  searchInput.addEventListener("input", () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { if (currentTab === "search") buildFeed(); }, 200);
+    searchTimer = setTimeout(runSearch, 150);
   });
+  searchInput.addEventListener("keyup", (e) => {
+    if (e.key === "Enter") {
+      clearTimeout(searchTimer);
+      runSearch();
+    }
+  });
+  searchInput.addEventListener("search", runSearch);
   clearBtn.onclick = () => {
     searchInput.value = "";
     searchQuery = "";
     clearBtn.style.display = "none";
-    buildFeed();
+    if (currentTab === "search") buildFeed();
     searchInput.focus();
   };
 
