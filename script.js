@@ -252,21 +252,41 @@ function scheduleAutoSpeak() {
 }
 
 function pauseAllVideos() {
-  document.querySelectorAll("video.reel-video").forEach(v => { try { v.pause(); } catch(e){} });
+  document.querySelectorAll("video.reel-video").forEach(v => {
+    try { v.pause(); } catch (e) {}
+  });
   activeVideo = null;
 }
 function playVisibleVideo() {
-  pauseAllVideos();
   const feed = document.getElementById("feed");
+  if (!feed) return;
   const cards = feed.querySelectorAll(".card");
   const card = cards[currentIndex];
+  document.querySelectorAll("video.reel-video").forEach(v => {
+    if (!card || !card.contains(v)) {
+      try { v.pause(); } catch (e) {}
+    }
+  });
   if (!card) return;
   const vid = card.querySelector("video.reel-video");
-  if (vid) {
-    activeVideo = vid;
-    vid.muted = true;
+  if (!vid) return;
+  activeVideo = vid;
+  vid.muted = true;
+  vid.defaultMuted = true;
+  vid.playsInline = true;
+  vid.setAttribute("playsinline", "");
+  vid.setAttribute("webkit-playsinline", "");
+  const tryPlay = () => {
     const p = vid.play();
-    if (p && p.catch) p.catch(() => {});
+    if (p && p.catch) p.catch(() => {
+      // retry once after a short delay (iOS sometimes needs it)
+      setTimeout(() => { try { vid.play().catch(() => {}); } catch (e) {} }, 250);
+    });
+  };
+  if (vid.readyState >= 2) tryPlay();
+  else {
+    vid.addEventListener("loadeddata", tryPlay, { once: true });
+    try { vid.load(); } catch (e) {}
   }
 }
 
@@ -323,7 +343,7 @@ function buildFeed() {
 
     if (t.video) {
       card.innerHTML = `
-        <video class="reel-video" src="${t.video}" muted loop playsinline preload="metadata"></video>
+        <video class="reel-video" src="${t.video}" muted defaultMuted loop playsinline webkit-playsinline preload="auto" autoplay></video>
         <div class="reel-scrim"></div>
         <div class="card-content">
           <div class="reel-title">${t.title || ""}</div>
@@ -639,6 +659,15 @@ function init() {
   
   document.getElementById("cancelBtn").onclick = closeProfileModal;
   document.getElementById("introStartBtn").onclick = closeIntro;
+  document.querySelectorAll(".intro-card").forEach(card => {
+    card.onclick = () => {
+      closeIntro();
+      const key = card.dataset.intro;
+      if (key === "retain") setTab("retain");
+      else if (key === "search") setTab("search");
+      else setTab("scroll");
+    };
+  });
   document.getElementById("openIntroBtn").onclick = () => {
     closeProfileModal();
     openIntro(true);
