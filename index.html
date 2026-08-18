@@ -9,15 +9,10 @@
 </head>
 <body>
   <div class="top-bar">
-    <div class="user-info" id="userInfo" title="Edit profile">
-      <div class="avatar" id="avatarDisplay"><i class="fa-solid fa-user"></i></div>
-      <div class="username" id="usernameDisplay">Set name</div>
-    </div>
-
     <div class="tabs">
-      <div class="tab active" data-tab="scroll" id="tabScroll"><i class="fa-solid fa-scroll"></i> Scroll</div>
-      <div class="tab" data-tab="retain" id="tabRetain"><i class="fa-solid fa-gem"></i> Retain<span class="tab-count" id="retainCount"></span></div>
-      <div class="tab" data-tab="search" id="tabSearch"><i class="fa-solid fa-magnifying-glass"></i> Search</div>
+      <div class="tab active" data-tab="scroll" id="tabScroll"><i class="fa-solid fa-scroll"></i><span>Scroll</span></div>
+      <div class="tab" data-tab="retain" id="tabRetain"><i class="fa-solid fa-gem"></i><span>Retain<span class="tab-count" id="retainCount"></span></span></div>
+      <div class="tab" data-tab="search" id="tabSearch"><i class="fa-solid fa-magnifying-glass"></i><span>Search</span></div>
     </div>
   </div>
 
@@ -29,8 +24,8 @@
 
   <div class="side-actions" id="sideActions">
     <div class="action-btn" id="profileBtnSide">
-      <div class="action-icon" id="profileSideIcon"><i class="fa-solid fa-user"></i></div>
-      <div class="action-label">Profile</div>
+      <div class="action-icon avatar-action" id="profileSideIcon"><i class="fa-solid fa-user"></i></div>
+      <div class="action-label" id="usernameDisplay">Profile</div>
     </div>
     <div class="action-btn" id="saveBtnSide">
       <div class="action-icon" id="saveIcon"><i class="fa-regular fa-bookmark"></i></div>
