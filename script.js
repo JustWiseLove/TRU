@@ -16,9 +16,9 @@ let profile = {
   theme: localStorage.getItem("twltt_theme") || "#1a1a1a"
 };
 let retained = new Set(JSON.parse(localStorage.getItem("twltt_liked") || "[]"));
-let currentTab = "scroll";
-let currentGroup = "reels";
-let currentCards = typeof reelsCards !== "undefined" ? reelsCards : [];
+let currentTab = "browse";
+let currentGroup = "reel";
+let currentCards = typeof reelCards !== "undefined" ? reelCards : [];
 let currentIndex = 0;
 let scrolledToday = false;
 let isLooping = false;
@@ -26,12 +26,12 @@ let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
 let totalShares = parseInt(localStorage.getItem("twltt_shares") || "0", 10);
 let searchQuery = "";
 let darkMode = localStorage.getItem("twltt_dark") === "1";
-let savedIndex = { truth: 0, proof: 0, reels: 0 };
+let savedIndex = { truth: 0, learn: 0, reel: 0 };
 let isSpeaking = false;
 let preferredVoice = null;
 let audioOn = localStorage.getItem("twltt_audio") === "1";
 let cardOrder = localStorage.getItem("twltt_order") || "default";
-let shuffledCache = { truth: null, proof: null, reels: null };
+let shuffledCache = { truth: null, learn: null, reel: null };
 let autoSpeakTimer = null;
 let lastSpokenId = null;
 let activeVideo = null;
@@ -80,11 +80,11 @@ function showToast(m) {
   t.textContent = m; t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2200);
 }
-function saveRetained() { localStorage.setItem("twltt_liked", JSON.stringify([...retained])); updateRetainCount(); }
-function updateRetainCount() {
-  const e = document.getElementById("retainCount");
+function saveRetained() { localStorage.setItem("twltt_liked", JSON.stringify([...retained])); updateReviewCount(); }
+function updateReviewCount() {
+  const e = document.getElementById("reviewCount");
   if (e) e.textContent = retained.size ? ` ${retained.size}` : "";
-  const s = document.getElementById("retainStat");
+  const s = document.getElementById("reviewStat");
   if (s) s.textContent = retained.size;
 }
 
@@ -107,8 +107,8 @@ function applyDarkMode(on) {
 function allCards() {
   return [
     ...(typeof truthCards !== "undefined" ? truthCards : []),
-    ...(typeof proofCards !== "undefined" ? proofCards : []),
-    ...(typeof reelsCards !== "undefined" ? reelsCards : [])
+    ...(typeof learnCards !== "undefined" ? learnCards : []),
+    ...(typeof reelCards !== "undefined" ? reelCards : [])
   ];
 }
 function cardMatches(card, q) {
@@ -123,8 +123,8 @@ function cardMatches(card, q) {
   return hay.includes(s);
 }
 function getSourceLabel(card) {
-  if (typeof reelsCards !== "undefined" && reelsCards.some(c => c.id === card.id)) return "Reels";
-  if (typeof proofCards !== "undefined" && proofCards.some(c => c.id === card.id)) return "Proof";
+  if (typeof reelCards !== "undefined" && reelCards.some(c => c.id === card.id)) return "Reel";
+  if (typeof learnCards !== "undefined" && learnCards.some(c => c.id === card.id)) return "Learn";
   return "Truth";
 }
 function shuffleArray(arr) {
@@ -138,8 +138,8 @@ function shuffleArray(arr) {
 function getGroupCards(group) {
   let base = [];
   if (group === "truth") base = typeof truthCards !== "undefined" ? truthCards : [];
-  else if (group === "proof") base = typeof proofCards !== "undefined" ? proofCards : [];
-  else base = typeof reelsCards !== "undefined" ? reelsCards : [];
+  else if (group === "learn") base = typeof learnCards !== "undefined" ? learnCards : [];
+  else base = typeof reelCards !== "undefined" ? reelCards : [];
   if (cardOrder === "shuffle") {
     if (!shuffledCache[group] || shuffledCache[group].length !== base.length) {
       shuffledCache[group] = shuffleArray(base);
@@ -152,7 +152,7 @@ function getGroupCards(group) {
 function pickBestVoice() {
   const voices = speechSynthesis.getVoices();
   if (!voices.length) return null;
-  const prefer = currentGroup === "reels"
+  const prefer = currentGroup === "reel"
     ? ["Samantha", "Karen", "Moira", "Tessa", "Google US English", "Microsoft Zira"]
     : ["Alex", "Aaron", "Daniel", "Fred", "Google UK English Male", "Microsoft David"];
   for (const name of prefer) {
@@ -205,7 +205,7 @@ function speakCurrentCard(force) {
   const utter = new SpeechSynthesisUtterance(speakText);
   if (preferredVoice) utter.voice = preferredVoice;
   utter.rate = 0.95;
-  utter.pitch = currentGroup === "reels" ? 1.05 : 0.98;
+  utter.pitch = currentGroup === "reel" ? 1.05 : 0.98;
   utter.lang = (preferredVoice && preferredVoice.lang) || "en-US";
   let wordIndex = 0;
   utter.onboundary = (e) => {
@@ -241,10 +241,10 @@ function speakCurrentCard(force) {
   speechSynthesis.speak(utter);
 }
 function scheduleAutoSpeak() {
-  if (!audioOn || currentTab !== "scroll") return;
+  if (!audioOn || currentTab !== "browse") return;
   if (autoSpeakTimer) clearTimeout(autoSpeakTimer);
   autoSpeakTimer = setTimeout(() => {
-    if (audioOn && currentTab === "scroll" && !isSpeaking) {
+    if (audioOn && currentTab === "browse" && !isSpeaking) {
       try { speechSynthesis.resume(); } catch (e) {}
       speakCurrentCard(true);
     }
@@ -299,10 +299,10 @@ function buildFeed() {
   if (currentTab === "search") searchBar.classList.add("visible");
   else searchBar.classList.remove("visible");
   const bottomNav = document.getElementById("bottomNav");
-  if (currentTab === "scroll") bottomNav.classList.remove("hidden");
+  if (currentTab === "browse") bottomNav.classList.remove("hidden");
   else bottomNav.classList.add("hidden");
 
-  if (currentTab === "retain") {
+  if (currentTab === "review") {
     currentCards = allCards().filter(c => retained.has(c.id));
   } else if (currentTab === "search") {
     const q = searchQuery.trim();
@@ -313,8 +313,8 @@ function buildFeed() {
 
   if (!currentCards.length) {
     let emptyHtml = "";
-    if (currentTab === "retain") {
-      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-gem"></i></div><h3>Nothing retained yet</h3><p>Tap Save on any card<br>to keep it here.</p></div>`;
+    if (currentTab === "review") {
+      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-gem"></i></div><h3>Nothing to review yet</h3><p>Tap Save on any card<br>to keep it here.</p></div>`;
     } else if (currentTab === "search") {
       emptyHtml = searchQuery.trim()
         ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results for "${searchQuery}"</h3><p>Try another keyword.</p></div>`
@@ -328,7 +328,7 @@ function buildFeed() {
   }
 
   document.getElementById("sideActions").style.display = currentTab === "search" ? "none" : "flex";
-  const isSnap = currentTab === "scroll";
+  const isSnap = currentTab === "browse";
   const toRender = isSnap ? [...currentCards, ...currentCards] : currentCards;
 
   toRender.forEach((t, i) => {
@@ -337,9 +337,9 @@ function buildFeed() {
     card.dataset.index = i;
     card.dataset.id = t.id;
     const di = (i % currentCards.length) + 1;
-    const label = currentTab === "search" || currentTab === "retain"
+    const label = currentTab === "search" || currentTab === "review"
       ? getSourceLabel(t)
-      : (currentGroup === "proof" ? "Proof" : currentGroup === "reels" ? "Reels" : "Truth");
+      : (currentGroup === "learn" ? "Learn" : currentGroup === "reel" ? "Reel" : "Truth");
 
     if (t.video) {
       card.innerHTML = `
@@ -411,7 +411,7 @@ function setupScrollTracking() {
           lastSpokenId = null;
         }
         currentIndex = idx;
-        if (currentTab === "scroll") {
+        if (currentTab === "browse") {
           savedIndex[currentGroup] = idx % Math.max(currentCards.length, 1);
         }
         updateSaveButton();
@@ -427,7 +427,7 @@ function setupScrollTracking() {
     clearTimeout(st);
     st = setTimeout(() => {
       if (ff.scrollTop > 40) markScrolledToday();
-      if (currentTab !== "scroll" || isLooping) return;
+      if (currentTab !== "browse" || isLooping) return;
       const h = window.innerHeight, mid = currentCards.length * h;
       if (ff.scrollTop >= mid - h * 0.5) {
         isLooping = true;
@@ -441,10 +441,10 @@ function setupScrollTracking() {
 function toggleSave() {
   if (!currentCards.length || currentTab === "search") return;
   const id = currentCards[currentIndex % currentCards.length].id;
-  if (retained.has(id)) { retained.delete(id); showToast("Removed from Retain"); }
-  else { retained.add(id); showToast("Saved to Retain"); }
+  if (retained.has(id)) { retained.delete(id); showToast("Removed from Review"); }
+  else { retained.add(id); showToast("Saved to Review"); }
   saveRetained(); updateSaveButton();
-  if (currentTab === "retain") buildFeed();
+  if (currentTab === "review") buildFeed();
 }
 
 function shareCard() {
@@ -517,7 +517,7 @@ function shareCard() {
   ctx.fillStyle = "#999"; ctx.font = "24px -apple-system,sans-serif";
   ctx.fillText(`${getSourceLabel(t)} ${t.num}`, w / 2, y);
   ctx.fillStyle = themeColor; ctx.font = "bold 28px -apple-system,sans-serif";
-  ctx.fillText("Scroll Â· Retain Â· Search", w / 2, h - 100);
+  ctx.fillText("Browse Â· Review Â· Search", w / 2, h - 100);
   canvas.toBlob(blob => {
     incrementShares();
     const file = new File([blob], `card-${(t.ref || t.title || "share").replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
@@ -583,7 +583,7 @@ function openProfileModal() {
   updateTimeLeft();
   document.getElementById("scrollEXP").textContent = totalScrolls;
   document.getElementById("shareCount").textContent = totalShares;
-  document.getElementById("retainStat").textContent = retained.size;
+  document.getElementById("reviewStat").textContent = retained.size;
   document.getElementById("profileModal").classList.add("open");
 }
 function closeProfileModal() {
@@ -610,12 +610,12 @@ function buildThemeOptions() {
 function setTab(tab) {
   stopSpeaking();
   pauseAllVideos();
-  if (currentTab === "scroll" && tab !== "scroll") {
+  if (currentTab === "browse" && tab !== "browse") {
     savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
   }
   currentTab = tab;
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  const idMap = { scroll: "tabScroll", retain: "tabRetain", search: "tabSearch" };
+  const idMap = { browse: "tabBrowse", review: "tabReview", search: "tabSearch" };
   const el = document.getElementById(idMap[tab]);
   if (el) el.classList.add("active");
   buildFeed();
@@ -623,17 +623,17 @@ function setTab(tab) {
 }
 
 function setGroup(group) {
-  if (currentTab === "scroll") {
+  if (currentTab === "browse") {
     savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
   }
   currentGroup = group;
   document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
-  const map = { truth: "groupTruth", reels: "groupReels", proof: "groupProof" };
+  const map = { learn: "groupLearn", reel: "groupReel", truth: "groupTruth" };
   const el = document.getElementById(map[group]);
   if (el) el.classList.add("active");
   preferredVoice = pickBestVoice();
-  if (currentTab === "scroll") buildFeed();
-  else setTab("scroll");
+  if (currentTab === "browse") buildFeed();
+  else setTab("browse");
 }
 
 function init() {
@@ -643,16 +643,16 @@ function init() {
   renderAvatarDisplay();
   updateUsernameDisplay();
   updateDayCounter();
-  updateRetainCount();
+  updateReviewCount();
   updateTodayCheck();
   setInterval(updateTimeLeft, 30000);
 
-  document.getElementById("tabScroll").onclick = () => setTab("scroll");
-  document.getElementById("tabRetain").onclick = () => setTab("retain");
+  document.getElementById("tabBrowse").onclick = () => setTab("browse");
+  document.getElementById("tabReview").onclick = () => setTab("review");
   document.getElementById("tabSearch").onclick = () => setTab("search");
+  document.getElementById("groupLearn").onclick = () => setGroup("learn");
+  document.getElementById("groupReel").onclick = () => setGroup("reel");
   document.getElementById("groupTruth").onclick = () => setGroup("truth");
-  document.getElementById("groupReels").onclick = () => setGroup("reels");
-  document.getElementById("groupProof").onclick = () => setGroup("proof");
   document.getElementById("saveBtnSide").onclick = toggleSave;
   document.getElementById("shareBtn").onclick = shareCard;
   document.getElementById("profileBtnSide").onclick = openProfileModal;
@@ -663,9 +663,9 @@ function init() {
     card.onclick = () => {
       closeIntro();
       const key = card.dataset.intro;
-      if (key === "retain") setTab("retain");
+      if (key === "review") setTab("review");
       else if (key === "search") setTab("search");
-      else setTab("scroll");
+      else setTab("browse");
     };
   });
   document.getElementById("openIntroBtn").onclick = () => {
@@ -688,13 +688,13 @@ function init() {
     localStorage.setItem("twltt_audio", audioOn ? "1" : "0");
     localStorage.setItem("twltt_order", cardOrder);
     if (prevOrder !== cardOrder) {
-      shuffledCache = { truth: null, proof: null, reels: null };
-      savedIndex = { truth: 0, proof: 0, reels: 0 };
+      shuffledCache = { truth: null, learn: null, reel: null };
+      savedIndex = { truth: 0, learn: 0, reel: 0 };
     }
     renderAvatarDisplay();
     updateUsernameDisplay();
     closeProfileModal();
-    if (currentTab === "scroll") buildFeed();
+    if (currentTab === "browse") buildFeed();
     if (audioOn) {
       try { speechSynthesis.resume(); } catch (e) {}
       setTimeout(() => speakCurrentCard(true), 100);
