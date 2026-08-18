@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Truths We Love to Teach</title>
+  <title>Scroll · Retain · Search</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -15,9 +15,9 @@
     </div>
 
     <div class="tabs">
-      <div class="tab active" data-tab="scroll" id="tabScroll">Scroll</div>
-      <div class="tab" data-tab="liked" id="tabLiked">Liked<span class="tab-count" id="likedCount"></span></div>
-      <div class="tab" data-tab="search" id="tabSearch">Search</div>
+      <div class="tab active" data-tab="scroll" id="tabScroll"><i class="fa-solid fa-scroll"></i> Scroll</div>
+      <div class="tab" data-tab="retain" id="tabRetain"><i class="fa-solid fa-gem"></i> Retain<span class="tab-count" id="retainCount"></span></div>
+      <div class="tab" data-tab="search" id="tabSearch"><i class="fa-solid fa-magnifying-glass"></i> Search</div>
     </div>
 
     <div class="streak-box" id="streakBox">
@@ -27,14 +27,14 @@
 
   <div class="search-bar" id="searchBar">
     <i class="fa-solid fa-magnifying-glass"></i>
-    <input type="text" id="searchInput" placeholder="Search scriptures, topics..." autocomplete="off">
+    <input type="text" id="searchInput" placeholder="Search scriptures, topics, facts..." autocomplete="off">
     <button type="button" id="clearSearch" class="clear-search" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
   </div>
 
   <div class="side-actions" id="sideActions">
-    <div class="action-btn" id="likeBtn">
-      <div class="action-icon" id="likeIcon"><i class="fa-regular fa-heart"></i></div>
-      <div class="action-label">Like</div>
+    <div class="action-btn" id="saveBtnSide">
+      <div class="action-icon" id="saveIcon"><i class="fa-regular fa-bookmark"></i></div>
+      <div class="action-label">Save</div>
     </div>
     <div class="action-btn" id="shareBtn">
       <div class="action-icon"><i class="fa-solid fa-share"></i></div>
@@ -46,14 +46,48 @@
   <div class="toast" id="toast"></div>
 
   <div class="bottom-nav" id="bottomNav">
-    <div class="bottom-tab active" id="groupTruth" data-group="truth">Truth</div>
-    <div class="bottom-tab" id="groupProof" data-group="proof">Proof</div>
+    <div class="bottom-tab" id="groupTruth" data-group="truth"><i class="fa-solid fa-book-open"></i><span>Truth</span></div>
+    <div class="bottom-tab active" id="groupReels" data-group="reels"><i class="fa-solid fa-film"></i><span>Reels</span></div>
+    <div class="bottom-tab" id="groupProof" data-group="proof"><i class="fa-solid fa-scale-balanced"></i><span>Proof</span></div>
+  </div>
+
+  <div class="modal-overlay" id="introModal">
+    <div class="modal intro-modal">
+      <h2>Scroll · Retain · Search</h2>
+      <p class="intro-tagline">Discover. Remember. Investigate.</p>
+      <div class="intro-body">
+        <p>This site helps you discover Bible truths, retain what matters, and search the Scriptures for yourself.</p>
+        <div class="intro-block">
+          <h3><i class="fa-solid fa-scroll"></i> Scroll — Discover</h3>
+          <p>Use familiar scrolling to encounter verses, teachings, facts, and encouraging thoughts — something worth stopping for.</p>
+        </div>
+        <div class="intro-block">
+          <h3><i class="fa-solid fa-gem"></i> Retain — Remember</h3>
+          <p>Save is not a casual like. It means: <em>I want to remember this.</em> Your retained cards become a personal collection. — Luke 8:15</p>
+        </div>
+        <div class="intro-block">
+          <h3><i class="fa-solid fa-magnifying-glass"></i> Search — Investigate</h3>
+          <p>Do not just accept a teaching. Examine the Scriptures yourself, like the Bereans. — Acts 17:11</p>
+        </div>
+        <div class="intro-block">
+          <h3><i class="fa-solid fa-book-open"></i> Truth · <i class="fa-solid fa-film"></i> Reels · <i class="fa-solid fa-scale-balanced"></i> Proof</h3>
+          <p><strong>Truth</strong> — core Bible teachings.<br>
+          <strong>Reels</strong> — short facts on reading and Bible hope, with peaceful motion backgrounds.<br>
+          <strong>Proof</strong> — scriptures that support what is taught.</p>
+        </div>
+        <p class="intro-one-liner">Scroll to discover. Retain what matters. Search for understanding.</p>
+        <p class="intro-contrast">Do not just scroll — learn. Do not just like — retain. Do not just believe — search.</p>
+      </div>
+      <label class="intro-check">
+        <input type="checkbox" id="introDontShow"> Do not show this again
+      </label>
+      <button class="btn btn-primary" id="introStartBtn" style="width:100%; margin-top:12px;">Start Exploring</button>
+    </div>
   </div>
 
   <div class="modal-overlay" id="profileModal">
     <div class="modal">
       <h2>Your Profile</h2>
-
       <div class="modal-section">
         <div class="modal-section-title">Account</div>
         <div class="profile-header-row">
@@ -68,7 +102,6 @@
           </div>
         </div>
       </div>
-
       <div class="modal-section">
         <div class="modal-section-title">Settings</div>
         <div class="setting-row">
@@ -92,39 +125,23 @@
           </div>
         </div>
         <div class="setting-row theme-row">
-          <div class="setting-info">
-            <span class="setting-name">Theme</span>
-          </div>
+          <div class="setting-info"><span class="setting-name">Theme</span></div>
           <div class="theme-options" id="themeOptions"></div>
         </div>
       </div>
-
       <div class="modal-section">
         <div class="modal-section-title">Analytics</div>
         <div class="profile-stats">
-          <div class="stat-row">
-            <span class="stat-label">Streak</span>
-            <span class="stat-value"><span id="profileStreak">0</span> <span id="todayCheck"><i class="fa-regular fa-square"></i></span></span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Time Left</span>
-            <span class="stat-value" id="timeLeft">-- HRS -- MINS</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Scrolls</span>
-            <span class="stat-value"><span id="scrollEXP">0</span> EXP</span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Shares</span>
-            <span class="stat-value"><span id="shareCount">0</span></span>
-          </div>
-          <div class="stat-row">
-            <span class="stat-label">Liked</span>
-            <span class="stat-value"><span id="likedStat">0</span></span>
-          </div>
+          <div class="stat-row"><span class="stat-label">Streak</span><span class="stat-value"><span id="profileStreak">0</span> <span id="todayCheck"><i class="fa-regular fa-square"></i></span></span></div>
+          <div class="stat-row"><span class="stat-label">Time Left</span><span class="stat-value" id="timeLeft">-- HRS -- MINS</span></div>
+          <div class="stat-row"><span class="stat-label">Scrolls</span><span class="stat-value"><span id="scrollEXP">0</span> EXP</span></div>
+          <div class="stat-row"><span class="stat-label">Shares</span><span class="stat-value"><span id="shareCount">0</span></span></div>
+          <div class="stat-row"><span class="stat-label">Retained</span><span class="stat-value"><span id="retainStat">0</span></span></div>
         </div>
       </div>
-
+      <div class="modal-section">
+        <button type="button" class="btn btn-secondary" id="openIntroBtn" style="width:100%;">How this site works</button>
+      </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
         <button class="btn btn-primary" id="saveBtn">Save</button>
@@ -134,6 +151,7 @@
 
   <script src="truth.js"></script>
   <script src="proof.js"></script>
+  <script src="reels.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
