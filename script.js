@@ -15,10 +15,10 @@ let profile = {
   avatarType: localStorage.getItem("twltt_avatarType") || "icon",
   theme: localStorage.getItem("twltt_theme") || "#1a1a1a"
 };
-let liked = new Set(JSON.parse(localStorage.getItem("twltt_liked") || "[]"));
+let retained = new Set(JSON.parse(localStorage.getItem("twltt_liked") || "[]"));
 let currentTab = "scroll";
-let currentGroup = "truth";
-let currentCards = typeof truthCards !== "undefined" ? truthCards : [];
+let currentGroup = "reels";
+let currentCards = typeof reelsCards !== "undefined" ? reelsCards : [];
 let currentIndex = 0;
 let scrolledToday = false;
 let isLooping = false;
@@ -26,14 +26,15 @@ let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
 let totalShares = parseInt(localStorage.getItem("twltt_shares") || "0", 10);
 let searchQuery = "";
 let darkMode = localStorage.getItem("twltt_dark") === "1";
-let savedIndex = { truth: 0, proof: 0 };
+let savedIndex = { truth: 0, proof: 0, reels: 0 };
 let isSpeaking = false;
 let preferredVoice = null;
 let audioOn = localStorage.getItem("twltt_audio") === "1";
 let cardOrder = localStorage.getItem("twltt_order") || "default";
-let shuffledCache = { truth: null, proof: null };
+let shuffledCache = { truth: null, proof: null, reels: null };
 let autoSpeakTimer = null;
 let lastSpokenId = null;
+let activeVideo = null;
 
 function todayKey() {
   const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
@@ -78,12 +79,12 @@ function showToast(m) {
   t.textContent = m; t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2200);
 }
-function saveLiked() { localStorage.setItem("twltt_liked", JSON.stringify([...liked])); updateLikedCount(); }
-function updateLikedCount() {
-  const e = document.getElementById("likedCount");
-  e.textContent = liked.size ? ` ${liked.size}` : "";
-  const s = document.getElementById("likedStat");
-  if (s) s.textContent = liked.size;
+function saveRetained() { localStorage.setItem("twltt_liked", JSON.stringify([...retained])); updateRetainCount(); }
+function updateRetainCount() {
+  const e = document.getElementById("retainCount");
+  if (e) e.textContent = retained.size ? ` ${retained.size}` : "";
+  const s = document.getElementById("retainStat");
+  if (s) s.textContent = retained.size;
 }
 
 function applyTheme(color) {
@@ -94,7 +95,6 @@ function applyTheme(color) {
   profile.theme = t.color;
   document.body.setAttribute("data-theme", t.name.toLowerCase());
 }
-
 function applyDarkMode(on) {
   darkMode = !!on;
   document.body.classList.toggle("dark", darkMode);
@@ -104,26 +104,28 @@ function applyDarkMode(on) {
 }
 
 function allCards() {
-  return [...(typeof truthCards !== "undefined" ? truthCards : []), ...(typeof proofCards !== "undefined" ? proofCards : [])];
+  return [
+    ...(typeof truthCards !== "undefined" ? truthCards : []),
+    ...(typeof proofCards !== "undefined" ? proofCards : []),
+    ...(typeof reelsCards !== "undefined" ? reelsCards : [])
+  ];
 }
-
 function cardMatches(card, q) {
   if (!q) return false;
   const s = q.toLowerCase().trim();
   if (!s) return false;
   const hay = [
-    card.ref, card.quote, card.text, card.category,
+    card.ref, card.quote, card.text, card.category, card.title,
     card.num != null ? String(card.num) : "",
     getSourceLabel(card)
   ].filter(Boolean).join(" ").toLowerCase();
   return hay.includes(s);
 }
-
 function getSourceLabel(card) {
+  if (typeof reelsCards !== "undefined" && reelsCards.some(c => c.id === card.id)) return "Reels";
   if (typeof proofCards !== "undefined" && proofCards.some(c => c.id === card.id)) return "Proof";
   return "Truth";
 }
-
 function shuffleArray(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -132,11 +134,11 @@ function shuffleArray(arr) {
   }
   return a;
 }
-
 function getGroupCards(group) {
-  const base = group === "truth"
-    ? (typeof truthCards !== "undefined" ? truthCards : [])
-    : (typeof proofCards !== "undefined" ? proofCards : []);
+  let base = [];
+  if (group === "truth") base = typeof truthCards !== "undefined" ? truthCards : [];
+  else if (group === "proof") base = typeof proofCards !== "undefined" ? proofCards : [];
+  else base = typeof reelsCards !== "undefined" ? reelsCards : [];
   if (cardOrder === "shuffle") {
     if (!shuffledCache[group] || shuffledCache[group].length !== base.length) {
       shuffledCache[group] = shuffleArray(base);
@@ -149,17 +151,15 @@ function getGroupCards(group) {
 function pickBestVoice() {
   const voices = speechSynthesis.getVoices();
   if (!voices.length) return null;
-  const prefer = ["Alex", "Aaron", "Daniel", "Fred", "Google UK English Male", "Microsoft David", "Microsoft Mark"];
+  const prefer = currentGroup === "reels"
+    ? ["Samantha", "Karen", "Moira", "Tessa", "Google US English", "Microsoft Zira"]
+    : ["Alex", "Aaron", "Daniel", "Fred", "Google UK English Male", "Microsoft David"];
   for (const name of prefer) {
     const v = voices.find(x => x.name.includes(name) && x.lang.startsWith("en"));
     if (v) return v;
   }
-  const maleHints = /alex|aaron|daniel|fred|david|mark|male/i;
-  const m = voices.find(x => x.lang.startsWith("en") && maleHints.test(x.name));
-  if (m) return m;
   return voices.find(x => x.lang === "en-US") || voices.find(x => x.lang.startsWith("en")) || voices[0];
 }
-
 function loadVoices() { preferredVoice = pickBestVoice(); }
 if (typeof speechSynthesis !== "undefined") {
   loadVoices();
@@ -170,91 +170,75 @@ function stopSpeaking() {
   if (autoSpeakTimer) { clearTimeout(autoSpeakTimer); autoSpeakTimer = null; }
   if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
   isSpeaking = false;
-  document.querySelectorAll(".scripture-quote .word.active").forEach(w => w.classList.remove("active"));
+  document.querySelectorAll(".scripture-quote .word.active, .truth-text .word.active").forEach(w => w.classList.remove("active"));
 }
-
-function wrapQuoteWords(quoteEl, text) {
+function wrapWords(el, text) {
   const words = text.split(/(\s+)/);
-  quoteEl.innerHTML = words.map(w => /^\s+$/.test(w) ? w : `<span class="word">${w}</span>`).join("");
-  return [...quoteEl.querySelectorAll(".word")];
+  el.innerHTML = words.map(w => /^\s+$/.test(w) ? w : `<span class="word">${w}</span>`).join("");
+  return [...el.querySelectorAll(".word")];
 }
-
 function speakCurrentCard(force) {
   if (typeof speechSynthesis === "undefined") return;
   if (!currentCards.length || currentTab === "search") return;
   if (!force && !audioOn) return;
-
   const card = currentCards[currentIndex % currentCards.length];
-  if (!card || !card.quote) return;
+  if (!card) return;
+  const speakText = card.quote || card.text || "";
+  if (!speakText) return;
   if (!force && lastSpokenId === card.id && isSpeaking) return;
-
-  // iOS often pauses the synthesis engine; resume before speaking
   try { speechSynthesis.resume(); } catch (e) {}
-  if (!preferredVoice) loadVoices();
-
+  preferredVoice = pickBestVoice();
   stopSpeaking();
   lastSpokenId = card.id;
 
   const feed = document.getElementById("feed");
   const visibleCards = feed.querySelectorAll(".card");
-  let quoteEl = null;
+  let textEl = null;
   for (const c of visibleCards) {
     if (parseInt(c.dataset.index, 10) === currentIndex) {
-      quoteEl = c.querySelector(".scripture-quote");
+      textEl = c.querySelector(".scripture-quote") || c.querySelector(".truth-text");
       break;
     }
   }
-  if (!quoteEl) {
-    for (const c of visibleCards) {
-      if (c.dataset.id === card.id) { quoteEl = c.querySelector(".scripture-quote"); break; }
-    }
-  }
-
-  const words = quoteEl ? wrapQuoteWords(quoteEl, card.quote) : [];
-  const utter = new SpeechSynthesisUtterance(card.quote);
-  if (!preferredVoice) preferredVoice = pickBestVoice();
+  const words = textEl ? wrapWords(textEl, speakText) : [];
+  const utter = new SpeechSynthesisUtterance(speakText);
   if (preferredVoice) utter.voice = preferredVoice;
   utter.rate = 0.95;
-  utter.pitch = 0.98;
+  utter.pitch = currentGroup === "reels" ? 1.05 : 0.98;
   utter.lang = (preferredVoice && preferredVoice.lang) || "en-US";
-
   let wordIndex = 0;
   utter.onboundary = (e) => {
     if (e.name !== "word" || !words.length) return;
     words.forEach(w => w.classList.remove("active"));
     if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
   };
-
-  const approxMs = Math.max(180, (card.quote.length / Math.max(card.quote.split(/\s+/).length, 1)) * 55);
+  const approxMs = Math.max(180, (speakText.length / Math.max(speakText.split(/\s+/).length, 1)) * 55);
   let fallbackTimer = null;
-  const startFallback = () => {
-    if (!words.length) return;
-    fallbackTimer = setInterval(() => {
-      if (!isSpeaking) { clearInterval(fallbackTimer); return; }
-      words.forEach(w => w.classList.remove("active"));
-      if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
-      else clearInterval(fallbackTimer);
-    }, approxMs / 0.95);
-  };
-
   utter.onstart = () => {
     isSpeaking = true;
-    setTimeout(() => { if (isSpeaking && wordIndex < 2) startFallback(); }, 400);
+    setTimeout(() => {
+      if (isSpeaking && wordIndex < 2 && words.length) {
+        fallbackTimer = setInterval(() => {
+          if (!isSpeaking) { clearInterval(fallbackTimer); return; }
+          words.forEach(w => w.classList.remove("active"));
+          if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
+          else clearInterval(fallbackTimer);
+        }, approxMs / 0.95);
+      }
+    }, 400);
   };
   utter.onend = () => {
     if (fallbackTimer) clearInterval(fallbackTimer);
     isSpeaking = false;
-    if (quoteEl) quoteEl.textContent = card.quote;
+    if (textEl) textEl.textContent = speakText;
   };
   utter.onerror = () => {
     if (fallbackTimer) clearInterval(fallbackTimer);
     isSpeaking = false;
-    if (quoteEl) quoteEl.textContent = card.quote;
+    if (textEl) textEl.textContent = speakText;
   };
-
   speechSynthesis.speak(utter);
 }
-
 function scheduleAutoSpeak() {
   if (!audioOn || currentTab !== "scroll") return;
   if (autoSpeakTimer) clearTimeout(autoSpeakTimer);
@@ -266,21 +250,39 @@ function scheduleAutoSpeak() {
   }, 600);
 }
 
+function pauseAllVideos() {
+  document.querySelectorAll("video.reel-video").forEach(v => { try { v.pause(); } catch(e){} });
+  activeVideo = null;
+}
+function playVisibleVideo() {
+  pauseAllVideos();
+  const feed = document.getElementById("feed");
+  const cards = feed.querySelectorAll(".card");
+  const card = cards[currentIndex];
+  if (!card) return;
+  const vid = card.querySelector("video.reel-video");
+  if (vid) {
+    activeVideo = vid;
+    vid.muted = true;
+    const p = vid.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+}
+
 function buildFeed() {
   const feed = document.getElementById("feed");
+  pauseAllVideos();
   feed.innerHTML = "";
   feed.classList.toggle("search-mode", currentTab === "search");
-
   const searchBar = document.getElementById("searchBar");
   if (currentTab === "search") searchBar.classList.add("visible");
   else searchBar.classList.remove("visible");
-
   const bottomNav = document.getElementById("bottomNav");
   if (currentTab === "scroll") bottomNav.classList.remove("hidden");
   else bottomNav.classList.add("hidden");
 
-  if (currentTab === "liked") {
-    currentCards = allCards().filter(c => liked.has(c.id));
+  if (currentTab === "retain") {
+    currentCards = allCards().filter(c => retained.has(c.id));
   } else if (currentTab === "search") {
     const q = searchQuery.trim();
     currentCards = q ? allCards().filter(c => cardMatches(c, q)) : [];
@@ -290,12 +292,12 @@ function buildFeed() {
 
   if (!currentCards.length) {
     let emptyHtml = "";
-    if (currentTab === "liked") {
-      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-regular fa-heart"></i></div><h3>No liked cards yet</h3><p>Tap the heart on any card<br>to save it here.</p></div>`;
+    if (currentTab === "retain") {
+      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-gem"></i></div><h3>Nothing retained yet</h3><p>Tap Save on any card<br>to keep it here.</p></div>`;
     } else if (currentTab === "search") {
       emptyHtml = searchQuery.trim()
-        ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results for "${searchQuery}"</h3><p>Try another word from a scripture,<br>topic, or teaching text.</p></div>`
-        : `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>Search</h3><p>Type a keyword to find<br>scriptures, topics, or text.</p></div>`;
+        ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results for "${searchQuery}"</h3><p>Try another keyword.</p></div>`
+        : `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>Search</h3><p>Type a keyword to find<br>scriptures, topics, or facts.</p></div>`;
     } else {
       emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-book-open"></i></div><h3>No cards</h3></div>`;
     }
@@ -305,26 +307,38 @@ function buildFeed() {
   }
 
   document.getElementById("sideActions").style.display = currentTab === "search" ? "none" : "flex";
-
   const isSnap = currentTab === "scroll";
   const toRender = isSnap ? [...currentCards, ...currentCards] : currentCards;
 
   toRender.forEach((t, i) => {
     const card = document.createElement("div");
-    card.className = "card";
+    card.className = "card" + (t.video ? " reel-card" : "");
     card.dataset.index = i;
     card.dataset.id = t.id;
     const di = (i % currentCards.length) + 1;
-    const label = currentTab === "search" || currentTab === "liked"
+    const label = currentTab === "search" || currentTab === "retain"
       ? getSourceLabel(t)
-      : (currentGroup === "proof" ? "Proof" : "Truth");
-    card.innerHTML = `<div class="card-content">
-      <div class="scripture-ref">${t.ref}</div>
-      <div class="scripture-quote">${t.quote}</div>
-      <div class="truth-text">${t.text}</div>
-      <div class="category">${t.category}</div>
-      <div class="card-meta">${label} ${t.num} | Card ${di} of ${currentCards.length}</div>
-    </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
+      : (currentGroup === "proof" ? "Proof" : currentGroup === "reels" ? "Reels" : "Truth");
+
+    if (t.video) {
+      card.innerHTML = `
+        <video class="reel-video" src="${t.video}" muted loop playsinline preload="metadata"></video>
+        <div class="reel-scrim"></div>
+        <div class="card-content">
+          <div class="reel-title">${t.title || ""}</div>
+          <div class="truth-text">${t.text}</div>
+          <div class="category">${t.category}</div>
+          <div class="card-meta">${label} ${t.num} | Card ${di} of ${currentCards.length}</div>
+        </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
+    } else {
+      card.innerHTML = `<div class="card-content">
+        <div class="scripture-ref">${t.ref}</div>
+        <div class="scripture-quote">${t.quote}</div>
+        <div class="truth-text">${t.text}</div>
+        <div class="category">${t.category}</div>
+        <div class="card-meta">${label} ${t.num} | Card ${di} of ${currentCards.length}</div>
+      </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
+    }
     feed.appendChild(card);
   });
 
@@ -338,21 +352,27 @@ function buildFeed() {
       const ff = document.getElementById("feed");
       const cards = ff.querySelectorAll(".card");
       if (cards[start]) ff.scrollTop = cards[start].offsetTop;
+      playVisibleVideo();
       scheduleAutoSpeak();
     });
   } else {
     feed.scrollTop = 0;
     currentIndex = 0;
   }
-  updateLikeButton();
+  updateSaveButton();
 }
 
-function updateLikeButton() {
-  const btn = document.getElementById("likeBtn"), icon = document.getElementById("likeIcon");
+function updateSaveButton() {
+  const btn = document.getElementById("saveBtnSide"), icon = document.getElementById("saveIcon");
   if (!currentCards.length || currentTab === "search") return;
   const id = currentCards[currentIndex % currentCards.length]?.id;
-  if (liked.has(id)) { btn.classList.add("liked"); icon.innerHTML = '<i class="fa-solid fa-heart"></i>'; }
-  else { btn.classList.remove("liked"); icon.innerHTML = '<i class="fa-regular fa-heart"></i>'; }
+  if (retained.has(id)) {
+    btn.classList.add("saved");
+    icon.innerHTML = '<i class="fa-solid fa-bookmark"></i>';
+  } else {
+    btn.classList.remove("saved");
+    icon.innerHTML = '<i class="fa-regular fa-bookmark"></i>';
+  }
 }
 
 function setupScrollTracking() {
@@ -373,9 +393,10 @@ function setupScrollTracking() {
         if (currentTab === "scroll") {
           savedIndex[currentGroup] = idx % Math.max(currentCards.length, 1);
         }
-        updateLikeButton();
+        updateSaveButton();
+        playVisibleVideo();
         if (idx > 0 || scrolledToday) markScrolledToday();
-        if (idx !== currentIndex || true) scheduleAutoSpeak();
+        scheduleAutoSpeak();
       }
     });
   }, {root: ff, threshold: 0.55});
@@ -396,25 +417,24 @@ function setupScrollTracking() {
   }, {passive: true});
 }
 
-function toggleLike() {
+function toggleSave() {
   if (!currentCards.length || currentTab === "search") return;
   const id = currentCards[currentIndex % currentCards.length].id;
-  if (liked.has(id)) { liked.delete(id); showToast("Removed from Liked"); }
-  else { liked.add(id); showToast("Added to Liked"); }
-  saveLiked(); updateLikeButton();
-  if (currentTab === "liked") buildFeed();
+  if (retained.has(id)) { retained.delete(id); showToast("Removed from Retain"); }
+  else { retained.add(id); showToast("Saved to Retain"); }
+  saveRetained(); updateSaveButton();
+  if (currentTab === "retain") buildFeed();
 }
 
 function shareCard() {
   if (!currentCards.length || currentTab === "search") return;
   const t = currentCards[currentIndex % currentCards.length];
-  const themeColor = getComputedStyle(document.documentElement).getPropertyValue("--theme").trim() || "#008000";
-  const themeSoft = getComputedStyle(document.documentElement).getPropertyValue("--theme-soft").trim() || "#e8f5e9";
+  const themeColor = getComputedStyle(document.documentElement).getPropertyValue("--theme").trim() || "#1a1a1a";
+  const themeSoft = getComputedStyle(document.documentElement).getPropertyValue("--theme-soft").trim() || "#f0f0f0";
   const canvas = document.createElement("canvas");
   const w = 1080, h = 1920;
   canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext("2d");
-
   function roundRect(ctx, x, y, width, height, radius) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -424,8 +444,7 @@ function shareCard() {
     ctx.arcTo(x, y, x + width, y, radius);
     ctx.closePath();
   }
-
-  function wrap(txt, x, y, mw, lh, align) {
+  function wrap(txt, x, y, mw, lh) {
     const words = txt.split(" ");
     let line = "", lines = [];
     for (let n = 0; n < words.length; n++) {
@@ -434,114 +453,58 @@ function shareCard() {
       else line = test;
     }
     lines.push(line.trim());
-    lines.forEach((l, i) => {
-      if (align === "center") ctx.fillText(l, x, y + i * lh);
-      else ctx.fillText(l, x, y + i * lh);
-    });
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
     return lines.length * lh;
   }
-
-  // Background
-  ctx.fillStyle = "#f0f4f0";
-  ctx.fillRect(0, 0, w, h);
-
-  // Soft accent orbs
+  ctx.fillStyle = "#f0f4f0"; ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = themeColor + "18";
   ctx.beginPath(); ctx.arc(200, 300, 280, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(900, 1600, 320, 0, Math.PI * 2); ctx.fill();
-
-  // White card
   const cardX = 70, cardY = 220, cardW = w - 140, cardH = h - 480;
   ctx.fillStyle = "#ffffff";
-  roundRect(ctx, cardX, cardY, cardW, cardH, 28);
-  ctx.fill();
-  ctx.shadowColor = "transparent";
-
-  // Top accent bar
-  ctx.fillStyle = themeColor;
-  roundRect(ctx, cardX, cardY, cardW, 12, 0);
-  ctx.fill();
-  ctx.fillRect(cardX, cardY, cardW, 12);
-
+  roundRect(ctx, cardX, cardY, cardW, cardH, 28); ctx.fill();
+  ctx.fillStyle = themeColor; ctx.fillRect(cardX, cardY, cardW, 12);
   let y = cardY + 80;
-
-  // Reference
-  ctx.fillStyle = themeColor;
-  ctx.font = "bold 52px -apple-system, BlinkMacSystemFont, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(t.ref, w / 2, y);
-  y += 50;
-
-  // Quote box
-  const quoteBoxTop = y;
+  ctx.fillStyle = themeColor; ctx.font = "bold 48px -apple-system,sans-serif"; ctx.textAlign = "center";
+  const head = t.ref || t.title || "";
+  ctx.fillText(head, w / 2, y); y += 60;
+  const body = t.quote || t.text || "";
   ctx.fillStyle = themeSoft;
-  roundRect(ctx, cardX + 40, quoteBoxTop, cardW - 80, 10, 12);
-  // measure quote first
-  ctx.font = "italic 38px -apple-system, sans-serif";
-  ctx.textAlign = "left";
-  const quoteLines = [];
+  const bodyLines = [];
+  ctx.font = "italic 36px -apple-system,sans-serif";
   {
-    const words = t.quote.split(" ");
-    let line = "";
-    const mw = cardW - 140;
+    const words = body.split(" "); let line = "";
     for (let n = 0; n < words.length; n++) {
       const test = line + words[n] + " ";
-      if (ctx.measureText(test).width > mw && n > 0) { quoteLines.push(line.trim()); line = words[n] + " "; }
+      if (ctx.measureText(test).width > cardW - 140 && n > 0) { bodyLines.push(line.trim()); line = words[n] + " "; }
       else line = test;
     }
-    quoteLines.push(line.trim());
+    bodyLines.push(line.trim());
   }
-  const quoteH = Math.max(quoteLines.length * 52 + 48, 140);
-  ctx.fillStyle = themeSoft;
-  roundRect(ctx, cardX + 40, quoteBoxTop, cardW - 80, quoteH, 16);
-  ctx.fill();
-  ctx.fillStyle = themeColor;
-  ctx.fillRect(cardX + 40, quoteBoxTop + 16, 8, quoteH - 32);
-
-  ctx.fillStyle = "#222";
-  ctx.font = "italic 38px -apple-system, sans-serif";
-  quoteLines.forEach((l, i) => ctx.fillText(l, cardX + 70, quoteBoxTop + 52 + i * 52));
-  y = quoteBoxTop + quoteH + 50;
-
-  // Teaching text
-  ctx.fillStyle = "#555";
-  ctx.font = "34px -apple-system, sans-serif";
-  ctx.textAlign = "center";
-  y += wrap(t.text, w / 2, y, cardW - 100, 46, "center") + 40;
-
-  // Category pill
-  ctx.font = "bold 28px -apple-system, sans-serif";
-  const cat = t.category.toUpperCase();
-  const catW = ctx.measureText(cat).width + 40;
-  ctx.fillStyle = themeSoft;
-  roundRect(ctx, (w - catW) / 2, y - 28, catW, 44, 22);
-  ctx.fill();
-  ctx.fillStyle = themeColor;
-  ctx.fillText(cat, w / 2, y);
-  y += 60;
-
-  // Meta
-  ctx.fillStyle = "#999";
-  ctx.font = "26px -apple-system, sans-serif";
+  const bodyH = Math.max(bodyLines.length * 50 + 48, 140);
+  roundRect(ctx, cardX + 40, y, cardW - 80, bodyH, 16); ctx.fill();
+  ctx.fillStyle = themeColor; ctx.fillRect(cardX + 40, y + 16, 8, bodyH - 32);
+  ctx.fillStyle = "#222"; ctx.font = "italic 36px -apple-system,sans-serif"; ctx.textAlign = "left";
+  bodyLines.forEach((l, i) => ctx.fillText(l, cardX + 70, y + 50 + i * 50));
+  y += bodyH + 50;
+  if (t.quote && t.text) {
+    ctx.fillStyle = "#555"; ctx.font = "32px -apple-system,sans-serif"; ctx.textAlign = "center";
+    y += wrap(t.text, w / 2, y, cardW - 100, 44) + 30;
+  }
+  ctx.fillStyle = themeColor; ctx.font = "bold 26px -apple-system,sans-serif"; ctx.textAlign = "center";
+  ctx.fillText((t.category || "").toUpperCase(), w / 2, y); y += 50;
+  ctx.fillStyle = "#999"; ctx.font = "24px -apple-system,sans-serif";
   ctx.fillText(`${getSourceLabel(t)} ${t.num}`, w / 2, y);
-
-  // Footer branding
-  ctx.fillStyle = themeColor;
-  ctx.font = "bold 28px -apple-system, sans-serif";
-  ctx.fillText("Truths We Love to Teach", w / 2, h - 100);
-  ctx.fillStyle = "#aaa";
-  ctx.font = "22px -apple-system, sans-serif";
-  ctx.fillText("NWT", w / 2, h - 60);
-
+  ctx.fillStyle = themeColor; ctx.font = "bold 28px -apple-system,sans-serif";
+  ctx.fillText("Scroll Â· Retain Â· Search", w / 2, h - 100);
   canvas.toBlob(blob => {
     incrementShares();
-    const file = new File([blob], `scripture-${t.ref.replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
+    const file = new File([blob], `card-${(t.ref || t.title || "share").replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
     if (navigator.canShare && navigator.canShare({files: [file]})) {
       navigator.share({files: [file]}).catch(() => dl(canvas));
     } else dl(canvas);
   }, "image/png");
 }
-
 function dl(c) {
   const a = document.createElement("a");
   a.download = "scripture-card.png";
@@ -554,29 +517,30 @@ function renderAvatarDisplay() {
   const el = document.getElementById("avatarDisplay");
   el.innerHTML = "";
   if (profile.avatarType === "image" && profile.avatar) {
-    const i = document.createElement("img");
-    i.src = profile.avatar;
-    el.appendChild(i);
-  } else {
-    el.innerHTML = '<i class="fa-solid fa-user"></i>';
-  }
+    const i = document.createElement("img"); i.src = profile.avatar; el.appendChild(i);
+  } else el.innerHTML = '<i class="fa-solid fa-user"></i>';
 }
-
 function updateAvatarPreview() {
-  const el = document.getElementById("avatarPreview");
-  if (!el) return;
+  const el = document.getElementById("avatarPreview"); if (!el) return;
   el.innerHTML = "";
   if (profile.avatarType === "image" && profile.avatar) {
-    const i = document.createElement("img");
-    i.src = profile.avatar;
-    el.appendChild(i);
-  } else {
-    el.innerHTML = '<i class="fa-solid fa-user"></i>';
-  }
+    const i = document.createElement("img"); i.src = profile.avatar; el.appendChild(i);
+  } else el.innerHTML = '<i class="fa-solid fa-user"></i>';
 }
-
 function updateUsernameDisplay() {
   document.getElementById("usernameDisplay").textContent = profile.name || "Set name";
+}
+
+function openIntro(force) {
+  if (!force && localStorage.getItem("twltt_intro_hide") === "1") return;
+  document.getElementById("introDontShow").checked = false;
+  document.getElementById("introModal").classList.add("open");
+}
+function closeIntro() {
+  if (document.getElementById("introDontShow").checked) {
+    localStorage.setItem("twltt_intro_hide", "1");
+  }
+  document.getElementById("introModal").classList.remove("open");
 }
 
 function openProfileModal() {
@@ -592,14 +556,12 @@ function openProfileModal() {
   updateTimeLeft();
   document.getElementById("scrollEXP").textContent = totalScrolls;
   document.getElementById("shareCount").textContent = totalShares;
-  document.getElementById("likedStat").textContent = liked.size;
+  document.getElementById("retainStat").textContent = retained.size;
   document.getElementById("profileModal").classList.add("open");
 }
-
 function closeProfileModal() {
   document.getElementById("profileModal").classList.remove("open");
 }
-
 function buildThemeOptions() {
   const c = document.getElementById("themeOptions");
   c.innerHTML = "";
@@ -618,28 +580,33 @@ function buildThemeOptions() {
   });
 }
 
-function shareProfile() {
-  const text = `${profile.name || "Friend"}'s Scripture Profile\nStreak: ${getDaysSet().size} days\nScrolls: ${totalScrolls} EXP\nShares: ${totalShares}\nLiked: ${liked.size}\n\nTruths We Love to Teach`;
-  if (navigator.share) {
-    navigator.share({title: "My Scripture Profile", text}).catch(() => {
-      navigator.clipboard.writeText(text); showToast("Copied!");
-    });
-  } else {
-    navigator.clipboard.writeText(text); showToast("Copied!");
-  }
-}
-
 function setTab(tab) {
   stopSpeaking();
+  pauseAllVideos();
   if (currentTab === "scroll" && tab !== "scroll") {
     savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
   }
   currentTab = tab;
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  const el = document.getElementById("tab" + tab.charAt(0).toUpperCase() + tab.slice(1));
+  const idMap = { scroll: "tabScroll", retain: "tabRetain", search: "tabSearch" };
+  const el = document.getElementById(idMap[tab]);
   if (el) el.classList.add("active");
   buildFeed();
   if (tab === "search") setTimeout(() => document.getElementById("searchInput").focus(), 100);
+}
+
+function setGroup(group) {
+  if (currentTab === "scroll") {
+    savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
+  }
+  currentGroup = group;
+  document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
+  const map = { truth: "groupTruth", reels: "groupReels", proof: "groupProof" };
+  const el = document.getElementById(map[group]);
+  if (el) el.classList.add("active");
+  preferredVoice = pickBestVoice();
+  if (currentTab === "scroll") buildFeed();
+  else setTab("scroll");
 }
 
 function init() {
@@ -649,36 +616,26 @@ function init() {
   renderAvatarDisplay();
   updateUsernameDisplay();
   updateDayCounter();
-  updateLikedCount();
+  updateRetainCount();
   updateTodayCheck();
   setInterval(updateTimeLeft, 30000);
 
   document.getElementById("tabScroll").onclick = () => setTab("scroll");
-  document.getElementById("tabLiked").onclick = () => setTab("liked");
+  document.getElementById("tabRetain").onclick = () => setTab("retain");
   document.getElementById("tabSearch").onclick = () => setTab("search");
-
-  document.getElementById("groupTruth").onclick = () => {
-    if (currentTab === "scroll") savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
-    currentGroup = "truth";
-    document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
-    document.getElementById("groupTruth").classList.add("active");
-    if (currentTab === "scroll") buildFeed();
-    else setTab("scroll");
-  };
-  document.getElementById("groupProof").onclick = () => {
-    if (currentTab === "scroll") savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
-    currentGroup = "proof";
-    document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
-    document.getElementById("groupProof").classList.add("active");
-    if (currentTab === "scroll") buildFeed();
-    else setTab("scroll");
-  };
-
+  document.getElementById("groupTruth").onclick = () => setGroup("truth");
+  document.getElementById("groupReels").onclick = () => setGroup("reels");
+  document.getElementById("groupProof").onclick = () => setGroup("proof");
   document.getElementById("streakBox").onclick = () => applyDarkMode(!darkMode);
-  document.getElementById("likeBtn").onclick = toggleLike;
+  document.getElementById("saveBtnSide").onclick = toggleSave;
   document.getElementById("shareBtn").onclick = shareCard;
   document.getElementById("userInfo").onclick = openProfileModal;
   document.getElementById("cancelBtn").onclick = closeProfileModal;
+  document.getElementById("introStartBtn").onclick = closeIntro;
+  document.getElementById("openIntroBtn").onclick = () => {
+    closeProfileModal();
+    openIntro(true);
+  };
 
   document.getElementById("saveBtn").onclick = () => {
     profile.name = document.getElementById("nameInput").value.trim() || "Friend";
@@ -693,20 +650,17 @@ function init() {
     localStorage.setItem("twltt_audio", audioOn ? "1" : "0");
     localStorage.setItem("twltt_order", cardOrder);
     if (prevOrder !== cardOrder) {
-      shuffledCache = { truth: null, proof: null };
-      savedIndex = { truth: 0, proof: 0 };
+      shuffledCache = { truth: null, proof: null, reels: null };
+      savedIndex = { truth: 0, proof: 0, reels: 0 };
     }
     renderAvatarDisplay();
     updateUsernameDisplay();
     closeProfileModal();
     if (currentTab === "scroll") buildFeed();
     if (audioOn) {
-      // User gesture (Save tap) unlocks iOS speech â speak current card now
       try { speechSynthesis.resume(); } catch (e) {}
       setTimeout(() => speakCurrentCard(true), 100);
-    } else {
-      stopSpeaking();
-    }
+    } else stopSpeaking();
     showToast(audioOn ? "Audio on" : "Saved");
   };
 
@@ -714,25 +668,16 @@ function init() {
     const f = e.target.files[0]; if (!f) return;
     if (f.size > 2 * 1024 * 1024) { alert("Image under 2 MB please."); return; }
     const r = new FileReader();
-    r.onload = ev => {
-      profile.avatar = ev.target.result;
-      profile.avatarType = "image";
-      updateAvatarPreview();
-    };
+    r.onload = ev => { profile.avatar = ev.target.result; profile.avatarType = "image"; updateAvatarPreview(); };
     r.readAsDataURL(f);
   };
   document.getElementById("resetAvatarBtn").onclick = () => {
-    profile.avatar = "";
-    profile.avatarType = "icon";
-    updateAvatarPreview();
+    profile.avatar = ""; profile.avatarType = "icon"; updateAvatarPreview();
   };
-  document.getElementById("profileModal").onclick = e => {
-    if (e.target.id === "profileModal") closeProfileModal();
-  };
-
+  document.getElementById("profileModal").onclick = e => { if (e.target.id === "profileModal") closeProfileModal(); };
+  document.getElementById("introModal").onclick = e => { if (e.target.id === "introModal") closeIntro(); };
   document.getElementById("orderSegment").onclick = e => {
-    const btn = e.target.closest(".seg-btn");
-    if (!btn) return;
+    const btn = e.target.closest(".seg-btn"); if (!btn) return;
     document.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
   };
@@ -750,21 +695,14 @@ function init() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(runSearch, 150);
   });
-  searchInput.addEventListener("keyup", (e) => {
-    if (e.key === "Enter") {
-      clearTimeout(searchTimer);
-      runSearch();
-    }
-  });
-  searchInput.addEventListener("search", runSearch);
+  searchInput.addEventListener("keyup", e => { if (e.key === "Enter") { clearTimeout(searchTimer); runSearch(); } });
   clearBtn.onclick = () => {
-    searchInput.value = "";
-    searchQuery = "";
-    clearBtn.style.display = "none";
+    searchInput.value = ""; searchQuery = ""; clearBtn.style.display = "none";
     if (currentTab === "search") buildFeed();
     searchInput.focus();
   };
 
-  if (!profile.name) setTimeout(() => { if (!profile.name) openProfileModal(); }, 2000);
+  openIntro(false);
+  if (!profile.name) setTimeout(() => { if (!profile.name) openProfileModal(); }, 2500);
 }
 init();
