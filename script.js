@@ -515,11 +515,14 @@ function dl(c) {
 }
 
 function renderAvatarDisplay() {
-  const el = document.getElementById("avatarDisplay");
+  const el = document.getElementById("profileSideIcon");
+  if (!el) return;
   el.innerHTML = "";
   if (profile.avatarType === "image" && profile.avatar) {
     const i = document.createElement("img"); i.src = profile.avatar; el.appendChild(i);
-  } else el.innerHTML = '<i class="fa-solid fa-user"></i>';
+  } else {
+    el.innerHTML = '<i class="fa-solid fa-user"></i>';
+  }
 }
 function updateAvatarPreview() {
   const el = document.getElementById("avatarPreview"); if (!el) return;
@@ -529,7 +532,8 @@ function updateAvatarPreview() {
   } else el.innerHTML = '<i class="fa-solid fa-user"></i>';
 }
 function updateUsernameDisplay() {
-  document.getElementById("usernameDisplay").textContent = profile.name || "Set name";
+  const el = document.getElementById("usernameDisplay");
+  if (el) el.textContent = profile.name || "Profile";
 }
 
 function openIntro(force) {
@@ -632,7 +636,7 @@ function init() {
   document.getElementById("saveBtnSide").onclick = toggleSave;
   document.getElementById("shareBtn").onclick = shareCard;
   document.getElementById("profileBtnSide").onclick = openProfileModal;
-  document.getElementById("userInfo").onclick = openProfileModal;
+  
   document.getElementById("cancelBtn").onclick = closeProfileModal;
   document.getElementById("introStartBtn").onclick = closeIntro;
   document.getElementById("openIntroBtn").onclick = () => {
