@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Scroll · Retain · Search</title>
+  <title>Browse · Review · Search</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="top-bar">
     <div class="tabs">
-      <div class="tab active" data-tab="scroll" id="tabScroll"><i class="fa-solid fa-scroll"></i><span>Scroll</span></div>
-      <div class="tab" data-tab="retain" id="tabRetain"><i class="fa-solid fa-gem"></i><span>Retain<span class="tab-count" id="retainCount"></span></span></div>
+      <div class="tab active" data-tab="browse" id="tabBrowse"><i class="fa-solid fa-compass"></i><span>Browse</span></div>
+      <div class="tab" data-tab="review" id="tabReview"><i class="fa-solid fa-gem"></i><span>Review<span class="tab-count" id="reviewCount"></span></span></div>
       <div class="tab" data-tab="search" id="tabSearch"><i class="fa-solid fa-magnifying-glass"></i><span>Search</span></div>
     </div>
   </div>
@@ -41,55 +41,55 @@
   <div class="toast" id="toast"></div>
 
   <div class="bottom-nav" id="bottomNav">
-    <div class="bottom-tab" id="groupTruth" data-group="truth"><i class="fa-solid fa-book-open"></i><span>Truth</span></div>
-    <div class="bottom-tab active" id="groupReels" data-group="reels"><i class="fa-solid fa-film"></i><span>Reels</span></div>
-    <div class="bottom-tab" id="groupProof" data-group="proof"><i class="fa-solid fa-scale-balanced"></i><span>Proof</span></div>
+    <div class="bottom-tab" id="groupLearn" data-group="learn"><i class="fa-solid fa-graduation-cap"></i><span>Learn</span></div>
+    <div class="bottom-tab active" id="groupReel" data-group="reel"><i class="fa-solid fa-film"></i><span>Reel</span></div>
+    <div class="bottom-tab" id="groupTruth" data-group="truth"><i class="fa-solid fa-crown"></i><span>Truth</span></div>
   </div>
 
   <div class="modal-overlay" id="introModal">
     <div class="modal intro-modal">
       <div class="intro-hero">
         <div class="intro-hero-icon"><i class="fa-solid fa-crown"></i></div>
-        <h2>Scroll · Retain · Search</h2>
-        <p class="intro-tagline">Discover. Remember. Investigate.</p>
+        <h2>Browse · Review · Search</h2>
+        <p class="intro-tagline">A journey through Scripture</p>
       </div>
       <div class="intro-body">
-        <p class="intro-lead">Built to help you discover Bible truths, retain what matters, and search the Scriptures for yourself.</p>
+        <p class="intro-lead">This is not endless scrolling. It is a simple path: browse what is true, review what you want to remember, and search the Scriptures for yourself.</p>
         <div class="intro-cards">
-          <button type="button" class="intro-card" data-intro="scroll">
-            <div class="intro-card-icon"><i class="fa-solid fa-scroll"></i></div>
+          <button type="button" class="intro-card" data-intro="browse">
+            <div class="intro-card-icon"><i class="fa-solid fa-compass"></i></div>
             <div class="intro-card-text">
-              <strong>Scroll</strong>
-              <span>Discover verses, teachings, and encouraging thoughts worth stopping for.</span>
+              <strong>Browse</strong>
+              <span>Move through teachings, short facts, and supporting scriptures — stop when something is worth keeping.</span>
             </div>
           </button>
-          <button type="button" class="intro-card" data-intro="retain">
+          <button type="button" class="intro-card" data-intro="review">
             <div class="intro-card-icon"><i class="fa-solid fa-gem"></i></div>
             <div class="intro-card-text">
-              <strong>Retain</strong>
-              <span>Save is not a casual like — it means “I want to remember this.” — Luke 8:15</span>
+              <strong>Review</strong>
+              <span>Save is a choice to remember. Your Review list is the collection you return to. — Luke 8:15</span>
             </div>
           </button>
           <button type="button" class="intro-card" data-intro="search">
             <div class="intro-card-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
             <div class="intro-card-text">
               <strong>Search</strong>
-              <span>Examine the Scriptures yourself, like the Bereans. — Acts 17:11</span>
+              <span>Do not only hear a teaching. Examine the Scriptures yourself, like the Bereans. — Acts 17:11</span>
             </div>
           </button>
         </div>
         <div class="intro-groups">
-          <div class="intro-group-pill"><i class="fa-solid fa-book-open"></i> Truth</div>
-          <div class="intro-group-pill"><i class="fa-solid fa-film"></i> Reels</div>
-          <div class="intro-group-pill"><i class="fa-solid fa-scale-balanced"></i> Proof</div>
+          <div class="intro-group-pill"><i class="fa-solid fa-graduation-cap"></i> Learn</div>
+          <div class="intro-group-pill"><i class="fa-solid fa-film"></i> Reel</div>
+          <div class="intro-group-pill"><i class="fa-solid fa-crown"></i> Truth</div>
         </div>
-        <p class="intro-one-liner">Scroll to discover. Retain what matters. Search for understanding.</p>
-        <p class="intro-contrast">Do not just scroll — learn. Do not just like — retain. Do not just believe — search.</p>
+        <p class="intro-one-liner">Browse to discover. Review what matters. Search for understanding.</p>
+        <p class="intro-contrast">Learn the teaching. Watch the Reel. Hold the Truth.</p>
       </div>
       <label class="intro-check">
         <input type="checkbox" id="introDontShow"> Do not show this again
       </label>
-      <button class="btn btn-primary intro-start" id="introStartBtn">Start Exploring</button>
+      <button class="btn btn-primary intro-start" id="introStartBtn">Begin the Journey</button>
     </div>
   </div>
 
@@ -152,9 +152,9 @@
         <div class="profile-stats">
           <div class="stat-row"><span class="stat-label">Streak</span><span class="stat-value"><span id="profileStreak">0</span> <span id="todayCheck"><i class="fa-regular fa-square"></i></span></span></div>
           <div class="stat-row"><span class="stat-label">Time Left</span><span class="stat-value" id="timeLeft">-- HRS -- MINS</span></div>
-          <div class="stat-row"><span class="stat-label">Scrolls</span><span class="stat-value"><span id="scrollEXP">0</span> EXP</span></div>
+          <div class="stat-row"><span class="stat-label">Browse</span><span class="stat-value"><span id="scrollEXP">0</span> EXP</span></div>
           <div class="stat-row"><span class="stat-label">Shares</span><span class="stat-value"><span id="shareCount">0</span></span></div>
-          <div class="stat-row"><span class="stat-label">Retained</span><span class="stat-value"><span id="retainStat">0</span></span></div>
+          <div class="stat-row"><span class="stat-label">Review</span><span class="stat-value"><span id="reviewStat">0</span></span></div>
         </div>
       </div>
       <div class="modal-section">
@@ -168,8 +168,8 @@
   </div>
 
   <script src="truth.js"></script>
-  <script src="proof.js"></script>
-  <script src="reels.js"></script>
+  <script src="learn.js"></script>
+  <script src="reel.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
