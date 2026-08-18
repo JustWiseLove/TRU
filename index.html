@@ -19,10 +19,6 @@
       <div class="tab" data-tab="retain" id="tabRetain"><i class="fa-solid fa-gem"></i> Retain<span class="tab-count" id="retainCount"></span></div>
       <div class="tab" data-tab="search" id="tabSearch"><i class="fa-solid fa-magnifying-glass"></i> Search</div>
     </div>
-
-    <div class="streak-box" id="streakBox">
-      <i class="fa-solid fa-sun"></i> Day <span id="dayCount">0</span>
-    </div>
   </div>
 
   <div class="search-bar" id="searchBar">
@@ -32,6 +28,10 @@
   </div>
 
   <div class="side-actions" id="sideActions">
+    <div class="action-btn" id="profileBtnSide">
+      <div class="action-icon" id="profileSideIcon"><i class="fa-solid fa-user"></i></div>
+      <div class="action-label">Profile</div>
+    </div>
     <div class="action-btn" id="saveBtnSide">
       <div class="action-icon" id="saveIcon"><i class="fa-regular fa-bookmark"></i></div>
       <div class="action-label">Save</div>
@@ -104,6 +104,16 @@
       </div>
       <div class="modal-section">
         <div class="modal-section-title">Settings</div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Dark mode</span>
+            <span class="setting-desc">Light or dark appearance</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="darkToggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-name">Audio</span>
