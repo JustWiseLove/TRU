@@ -48,27 +48,40 @@
 
   <div class="modal-overlay" id="introModal">
     <div class="modal intro-modal">
-      <h2>Scroll · Retain · Search</h2>
-      <p class="intro-tagline">Discover. Remember. Investigate.</p>
+      <div class="intro-hero">
+        <div class="intro-hero-icon"><i class="fa-solid fa-book-bible"></i></div>
+        <h2>Scroll · Retain · Search</h2>
+        <p class="intro-tagline">Discover. Remember. Investigate.</p>
+      </div>
       <div class="intro-body">
-        <p>This site helps you discover Bible truths, retain what matters, and search the Scriptures for yourself.</p>
-        <div class="intro-block">
-          <h3><i class="fa-solid fa-scroll"></i> Scroll — Discover</h3>
-          <p>Use familiar scrolling to encounter verses, teachings, facts, and encouraging thoughts — something worth stopping for.</p>
+        <p class="intro-lead">Built to help you discover Bible truths, retain what matters, and search the Scriptures for yourself.</p>
+        <div class="intro-cards">
+          <button type="button" class="intro-card" data-intro="scroll">
+            <div class="intro-card-icon"><i class="fa-solid fa-scroll"></i></div>
+            <div class="intro-card-text">
+              <strong>Scroll</strong>
+              <span>Discover verses, teachings, and encouraging thoughts worth stopping for.</span>
+            </div>
+          </button>
+          <button type="button" class="intro-card" data-intro="retain">
+            <div class="intro-card-icon"><i class="fa-solid fa-gem"></i></div>
+            <div class="intro-card-text">
+              <strong>Retain</strong>
+              <span>Save is not a casual like — it means “I want to remember this.” — Luke 8:15</span>
+            </div>
+          </button>
+          <button type="button" class="intro-card" data-intro="search">
+            <div class="intro-card-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="intro-card-text">
+              <strong>Search</strong>
+              <span>Examine the Scriptures yourself, like the Bereans. — Acts 17:11</span>
+            </div>
+          </button>
         </div>
-        <div class="intro-block">
-          <h3><i class="fa-solid fa-gem"></i> Retain — Remember</h3>
-          <p>Save is not a casual like. It means: <em>I want to remember this.</em> Your retained cards become a personal collection. — Luke 8:15</p>
-        </div>
-        <div class="intro-block">
-          <h3><i class="fa-solid fa-magnifying-glass"></i> Search — Investigate</h3>
-          <p>Do not just accept a teaching. Examine the Scriptures yourself, like the Bereans. — Acts 17:11</p>
-        </div>
-        <div class="intro-block">
-          <h3><i class="fa-solid fa-book-open"></i> Truth · <i class="fa-solid fa-film"></i> Reels · <i class="fa-solid fa-scale-balanced"></i> Proof</h3>
-          <p><strong>Truth</strong> — core Bible teachings.<br>
-          <strong>Reels</strong> — short facts on reading and Bible hope, with peaceful motion backgrounds.<br>
-          <strong>Proof</strong> — scriptures that support what is taught.</p>
+        <div class="intro-groups">
+          <div class="intro-group-pill"><i class="fa-solid fa-book-open"></i> Truth</div>
+          <div class="intro-group-pill"><i class="fa-solid fa-film"></i> Reels</div>
+          <div class="intro-group-pill"><i class="fa-solid fa-scale-balanced"></i> Proof</div>
         </div>
         <p class="intro-one-liner">Scroll to discover. Retain what matters. Search for understanding.</p>
         <p class="intro-contrast">Do not just scroll — learn. Do not just like — retain. Do not just believe — search.</p>
@@ -76,7 +89,7 @@
       <label class="intro-check">
         <input type="checkbox" id="introDontShow"> Do not show this again
       </label>
-      <button class="btn btn-primary" id="introStartBtn" style="width:100%; margin-top:12px;">Start Exploring</button>
+      <button class="btn btn-primary intro-start" id="introStartBtn">Start Exploring</button>
     </div>
   </div>
 
