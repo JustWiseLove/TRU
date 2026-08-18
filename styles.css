@@ -954,7 +954,7 @@ letter-spacing: 0.2px;
 align-items: stretch;
 justify-content: stretch;
 padding: 0;
-background: linear-gradient(165deg, #0b1a0b 0%, #122612 40%, #0a140a 100%);
+background: linear-gradient(165deg, color-mix(in srgb, var(--theme) 22%, #111) 0%, color-mix(in srgb, var(--theme) 12%, #0d0d0d) 45%, #0a0a0a 100%);
 }
 #introModal.open {
 display: flex;
@@ -1126,4 +1126,64 @@ padding: 14px !important;
 font-size: 16px !important;
 border-radius: 14px !important;
 box-shadow: 0 6px 20px color-mix(in srgb, var(--theme) 40%, transparent);
+}
+body:not(.dark) #introModal {
+background: linear-gradient(165deg, color-mix(in srgb, var(--theme) 18%, #f7f7f7) 0%, color-mix(in srgb, var(--theme) 8%, #ffffff) 50%, #f2f2f2 100%);
+}
+body:not(.dark) .intro-modal h2 {
+color: var(--text) !important;
+}
+body:not(.dark) .intro-tagline {
+color: var(--theme) !important;
+}
+body:not(.dark) .intro-body {
+color: var(--text) !important;
+}
+body:not(.dark) .intro-lead {
+color: var(--text-light) !important;
+}
+body:not(.dark) .intro-card {
+background: var(--white);
+border-color: color-mix(in srgb, var(--theme) 18%, #ddd);
+color: var(--text);
+box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+body:not(.dark) .intro-card-text span {
+color: var(--text-light);
+}
+body:not(.dark) .intro-group-pill {
+background: var(--theme-soft);
+border-color: color-mix(in srgb, var(--theme) 20%, transparent);
+color: var(--theme);
+}
+body:not(.dark) .intro-group-pill i {
+color: var(--theme);
+}
+body:not(.dark) .intro-one-liner {
+color: var(--theme) !important;
+}
+body:not(.dark) .intro-contrast {
+color: #888 !important;
+}
+body:not(.dark) .intro-check {
+color: #666 !important;
+}
+body:not(.dark) .intro-hero-icon {
+background: var(--theme);
+}
+body:not(.dark) .intro-hero {
+background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--theme) 20%, transparent), transparent 70%);
+}
+body:not(.dark)[data-theme="black"] #introModal {
+background: linear-gradient(165deg, #f4f4f4 0%, #ffffff 50%, #f0f0f0 100%);
+}
+body:not(.dark)[data-theme="black"] .intro-card-icon {
+background: #1a1a1a;
+}
+body:not(.dark)[data-theme="black"] .intro-hero-icon {
+background: #1a1a1a;
+}
+body:not(.dark)[data-theme="black"] .intro-start {
+background: #1a1a1a;
+color: #fff;
 }
