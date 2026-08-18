@@ -44,8 +44,9 @@ function getDaysSet() { try { return new Set(JSON.parse(localStorage.getItem("tw
 function saveDaysSet(s) { localStorage.setItem("twltt_days", JSON.stringify([...s])); }
 function updateDayCounter() {
   const d = getDaysSet();
-  document.getElementById("dayCount").textContent = d.size;
-  const p = document.getElementById("profileStreak"); if (p) p.textContent = d.size;
+  const dayEl = document.getElementById("dayCount");
+  if (dayEl) dayEl.textContent = d.size;
+  const pr = document.getElementById("profileStreak"); if (pr) pr.textContent = d.size;
 }
 function markScrolledToday() {
   if (scrolledToday) return;
@@ -99,8 +100,8 @@ function applyDarkMode(on) {
   darkMode = !!on;
   document.body.classList.toggle("dark", darkMode);
   localStorage.setItem("twltt_dark", darkMode ? "1" : "0");
-  const icon = document.querySelector("#streakBox i");
-  if (icon) icon.className = darkMode ? "fa-solid fa-moon" : "fa-solid fa-sun";
+  const dt = document.getElementById("darkToggle");
+  if (dt) dt.checked = darkMode;
 }
 
 function allCards() {
@@ -546,6 +547,8 @@ function closeIntro() {
 function openProfileModal() {
   document.getElementById("nameInput").value = profile.name;
   document.getElementById("audioToggle").checked = audioOn;
+  const dt = document.getElementById("darkToggle");
+  if (dt) dt.checked = darkMode;
   document.querySelectorAll(".seg-btn").forEach(b => {
     b.classList.toggle("active", b.dataset.order === cardOrder);
   });
@@ -626,9 +629,9 @@ function init() {
   document.getElementById("groupTruth").onclick = () => setGroup("truth");
   document.getElementById("groupReels").onclick = () => setGroup("reels");
   document.getElementById("groupProof").onclick = () => setGroup("proof");
-  document.getElementById("streakBox").onclick = () => applyDarkMode(!darkMode);
   document.getElementById("saveBtnSide").onclick = toggleSave;
   document.getElementById("shareBtn").onclick = shareCard;
+  document.getElementById("profileBtnSide").onclick = openProfileModal;
   document.getElementById("userInfo").onclick = openProfileModal;
   document.getElementById("cancelBtn").onclick = closeProfileModal;
   document.getElementById("introStartBtn").onclick = closeIntro;
@@ -640,6 +643,8 @@ function init() {
   document.getElementById("saveBtn").onclick = () => {
     profile.name = document.getElementById("nameInput").value.trim() || "Friend";
     audioOn = document.getElementById("audioToggle").checked;
+    const dt = document.getElementById("darkToggle");
+    if (dt) applyDarkMode(dt.checked);
     const prevOrder = cardOrder;
     const activeSeg = document.querySelector(".seg-btn.active");
     cardOrder = activeSeg ? activeSeg.dataset.order : "default";
