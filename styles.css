@@ -916,39 +916,119 @@ z-index: 1;
 .card.reel-card .card-content {
 position: relative;
 z-index: 2;
-background: rgba(255,255,255,0.12);
-backdrop-filter: blur(10px);
--webkit-backdrop-filter: blur(10px);
-border: 1px solid rgba(255,255,255,0.22);
+background: rgba(12, 14, 18, 0.55);
+backdrop-filter: blur(16px);
+-webkit-backdrop-filter: blur(16px);
+border: 1px solid rgba(255,255,255,0.18);
+border-radius: 20px;
 color: #fff;
-margin: 90px 20px 110px;
-max-width: 420px;
-}
-.card.reel-card .scripture-ref,
-.card.reel-card .reel-title {
-color: #fff;
-text-shadow: 0 1px 8px rgba(0,0,0,0.4);
-}
-.card.reel-card .scripture-quote,
-.card.reel-card .truth-text {
-color: #f2f2f2;
-background: rgba(0,0,0,0.25);
-border-left-color: #fff;
+margin: 100px 18px 120px;
+max-width: 400px;
+padding: 28px 22px 24px;
+text-align: center;
+align-items: center;
+box-shadow: 0 12px 40px rgba(0,0,0,0.35);
 }
 .card.reel-card .category {
-background: rgba(255,255,255,0.18);
+align-self: center;
+margin-bottom: 14px;
+background: rgba(255,255,255,0.14);
 color: #fff;
-border-color: rgba(255,255,255,0.3);
+border: 1px solid rgba(255,255,255,0.25);
+letter-spacing: 1.2px;
+font-size: 10px;
+padding: 5px 14px;
 }
-.card.reel-card .card-meta {
-color: rgba(255,255,255,0.75);
-}
-.reel-title {
-font-size: clamp(18px, 4.5vw, 22px);
+.card.reel-card .scripture-ref {
+color: #fff;
+font-size: clamp(18px, 5vw, 24px);
 font-weight: 700;
 text-align: center;
+margin-bottom: 14px;
+text-shadow: 0 2px 12px rgba(0,0,0,0.45);
+letter-spacing: 0.3px;
+line-height: 1.25;
+}
+.card.reel-card .scripture-quote {
+color: #f5f5f5;
+font-style: italic;
+font-size: clamp(14px, 3.6vw, 16.5px);
+line-height: 1.55;
+text-align: center;
+background: rgba(255,255,255,0.08);
+border-left: none;
+border-radius: 14px;
+padding: 14px 16px;
+margin-bottom: 14px;
+font-weight: 400;
+}
+.card.reel-card .truth-text,
+.card.reel-card .learn-point {
+color: rgba(255,255,255,0.92);
+text-align: center;
+font-size: clamp(14px, 3.5vw, 16px);
+line-height: 1.5;
 margin-bottom: 12px;
-letter-spacing: 0.2px;
+font-weight: 500;
+}
+.card.reel-card .card-meta {
+color: rgba(255,255,255,0.55);
+text-align: center;
+font-size: 11px;
+letter-spacing: 0.4px;
+margin-top: 4px;
+}
+.card.reel-card .reel-title {
+color: #fff;
+font-size: clamp(20px, 5.2vw, 26px);
+font-weight: 800;
+text-align: center;
+margin-bottom: 14px;
+line-height: 1.25;
+text-shadow: 0 2px 14px rgba(0,0,0,0.4);
+letter-spacing: -0.2px;
+}
+.card-content--truth .scripture-ref {
+font-size: clamp(20px, 5.5vw, 26px);
+}
+.card-content--truth .scripture-quote {
+font-size: clamp(14.5px, 3.8vw, 17px);
+}
+.card-content--truth .truth-text {
+opacity: 0.9;
+font-size: clamp(13px, 3.2vw, 15px);
+}
+.learn-point {
+font-size: clamp(16px, 4.2vw, 19px) !important;
+font-weight: 650 !important;
+line-height: 1.4 !important;
+margin-bottom: 16px !important;
+color: #fff !important;
+text-shadow: 0 1px 8px rgba(0,0,0,0.35);
+}
+.card-content--learn .scripture-ref {
+font-size: clamp(15px, 3.8vw, 18px);
+margin-bottom: 8px;
+opacity: 0.95;
+}
+.card-content--learn .scripture-quote {
+font-size: clamp(13.5px, 3.4vw, 15.5px);
+}
+.card-content--reel .reel-title {
+font-size: clamp(22px, 5.5vw, 28px);
+}
+.card-content--reel .truth-text {
+font-size: clamp(14.5px, 3.7vw, 17px);
+max-width: 34em;
+}
+.card.reel-card .scripture-quote .word.active {
+background: #fff;
+color: #111;
+font-style: normal;
+}
+.feed.search-mode .card.reel-card .card-content {
+margin: 12px 12px;
+background: rgba(20,22,28,0.85);
 }
 #introModal {
 align-items: stretch;
