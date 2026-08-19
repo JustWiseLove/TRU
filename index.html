@@ -1,174 +1,412 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Browse · Review · Search</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080808">
+<title>Redline — Money Planner</title>
+<link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <div class="top-bar">
-    <div class="tabs">
-      <div class="tab active" data-tab="browse" id="tabBrowse"><i class="fa-solid fa-compass"></i><span>Browse</span></div>
-      <div class="tab" data-tab="review" id="tabReview"><i class="fa-solid fa-gem"></i><span>Review<span class="tab-count" id="reviewCount"></span></span></div>
-      <div class="tab" data-tab="search" id="tabSearch"><i class="fa-solid fa-magnifying-glass"></i><span>Search</span></div>
+
+<div class="app">
+
+<header class="top">
+  <div class="brand">
+    <div class="logo">R</div>
+    <div>
+      <strong>REDLINE</strong>
+      <div class="tag">Your money. Your schedule. Your plan.</div>
     </div>
   </div>
 
-  <div class="search-bar" id="searchBar">
-    <i class="fa-solid fa-magnifying-glass"></i>
-    <input type="text" id="searchInput" placeholder="Search scriptures, topics, facts..." autocomplete="off">
-    <button type="button" id="clearSearch" class="clear-search" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
+  <button class="btn primary" id="quickAdd">＋ Bill</button>
+</header>
+
+<main class="main">
+
+<!-- DASHBOARD -->
+<section class="page active" id="page-dashboard">
+
+<h1>Dashboard</h1>
+<p class="sub" id="dashSub">Your money at a glance.</p>
+
+<div class="hero" id="safeHero">
+  <div class="eyebrow">Safe to Spend</div>
+  <div class="heroVal" id="safeSpend">$0.00</div>
+  <div class="muted" id="safeNote">Set up your paycheck schedule to begin.</div>
+</div>
+
+<div id="dashAlert" style="margin-top:10px"></div>
+
+<div class="metrics">
+  <div class="card metric">
+    <label>Checking</label>
+    <strong id="dChecking">$0</strong>
+    <span class="muted">Available balance</span>
   </div>
 
-  <div class="side-actions" id="sideActions">
-    <div class="action-btn" id="profileBtnSide">
-      <div class="action-icon avatar-action" id="profileSideIcon"><i class="fa-solid fa-user"></i></div>
-      <div class="action-label" id="usernameDisplay">Profile</div>
+  <div class="card metric">
+    <label>Next Paycheck</label>
+    <strong id="dPay">$0</strong>
+    <span class="muted" id="dPayDate">Not set</span>
+  </div>
+
+  <div class="card metric">
+    <label>Upcoming Bills</label>
+    <strong class="red" id="dBills">$0</strong>
+    <span class="muted" id="dBillCount">0 bills</span>
+  </div>
+
+  <div class="card metric">
+    <label>Savings</label>
+    <strong class="green" id="dSavings">$0</strong>
+    <span class="muted" id="dSavingsGoal">No goal</span>
+  </div>
+</div>
+
+<!-- Quick Checking Update -->
+<div class="card" style="margin-top:12px">
+  <div class="eyebrow" style="margin-bottom:8px">Quick Update</div>
+  <div class="row" style="align-items:center;gap:8px">
+    <div class="field" style="flex:1;min-width:0">
+      <label>Checking Balance</label>
+      <input type="number" min="0" step=".01" id="quickChecking" placeholder="0.00">
     </div>
-    <div class="action-btn" id="saveBtnSide">
-      <div class="action-icon" id="saveIcon"><i class="fa-regular fa-bookmark"></i></div>
-      <div class="action-label">Save</div>
+    <button class="btn primary" id="updateChecking" style="margin-top:18px;white-space:nowrap">
+      Update
+    </button>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Upcoming Bills</h2>
+  <span id="upCount">0</span>
+</div>
+
+<div class="list" id="dashBills"></div>
+
+<div class="section">
+  <h2>Next Paycheck Plan</h2>
+</div>
+
+<div id="dashPay"></div>
+
+</section>
+
+
+<!-- BILLS -->
+<section class="page" id="page-bills">
+
+<h1>Bills</h1>
+<p class="sub">Track every recurring and one-time obligation.</p>
+
+<div class="row noPrint">
+  <button class="btn primary" id="addBill">＋ Add Bill</button>
+  <button class="btn" id="exportBills">Export Bills</button>
+  <button class="btn" id="importBills">Import Bills</button>
+  <input hidden type="file" id="billInput" accept=".json,application/json">
+</div>
+
+<div class="metrics">
+  <div class="card metric">
+    <label>Active Bills</label>
+    <strong id="bCount">0</strong>
+    <span class="muted">Tracked obligations</span>
+  </div>
+
+  <div class="card metric">
+    <label>Monthly Estimate</label>
+    <strong class="red" id="bMonthly">$0</strong>
+    <span class="muted">Normalized estimate</span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Your Bills</h2>
+  <span id="bListCount">0</span>
+</div>
+
+<div class="list" id="billList"></div>
+
+</section>
+
+
+<!-- PAYCHECK -->
+<section class="page" id="page-paycheck">
+
+<h1>Paycheck</h1>
+<p class="sub">Tell Redline when you get paid and let it plan the money.</p>
+
+<div class="card">
+  <div class="grid two">
+
+    <div class="field">
+      <label>Pay Frequency</label>
+      <select id="frequency">
+        <option value="biweekly">Every 2 weeks</option>
+        <option value="weekly">Every week</option>
+      </select>
     </div>
-    <div class="action-btn" id="shareBtn">
-      <div class="action-icon"><i class="fa-solid fa-share"></i></div>
-      <div class="action-label">Share</div>
+
+    <div class="field">
+      <label>Preferred Payday</label>
+      <select id="payday">
+        <option>Thursday</option>
+        <option>Friday</option>
+        <option>Saturday</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Next Payday</label>
+      <input type="date" id="nextPay">
+      <div class="muted" style="font-size:10px;margin-top:4px">
+        Will snap to your preferred weekday
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Typical Paycheck</label>
+      <input type="number" min="0" step=".01" id="payAmount" placeholder="0.00">
+    </div>
+
+    <div class="field">
+      <label>Checking Balance</label>
+      <input type="number" min="0" step=".01" id="checking" placeholder="0.00">
+    </div>
+
+    <div class="field">
+      <label>Savings / Paycheck</label>
+      <input type="number" min="0" step=".01" id="savePerPay" placeholder="0.00">
+    </div>
+
+  </div>
+
+  <button class="btn primary full" style="margin-top:12px" id="savePay">
+    Save Pay Schedule
+  </button>
+</div>
+
+<div class="section">
+  <h2>Upcoming Paychecks</h2>
+  <span>Next 8</span>
+</div>
+
+<div class="list" id="payList"></div>
+
+</section>
+
+
+<!-- SAVINGS -->
+<section class="page" id="page-savings">
+
+<h1>Savings</h1>
+<p class="sub">Give every savings goal a destination.</p>
+
+<div class="card">
+  <div class="eyebrow">Current Savings</div>
+  <div class="heroVal" id="sCurrent">$0</div>
+  <div class="muted" id="sTarget">No goal set.</div>
+
+  <div class="progress" style="margin-top:14px">
+    <div class="bar" id="sBar" style="width:0"></div>
+  </div>
+
+  <div class="metrics" style="margin-top:10px">
+    <div class="card metric">
+      <label>Goal</label>
+      <strong id="sGoal">$0</strong>
+    </div>
+    <div class="card metric">
+      <label>Remaining</label>
+      <strong id="sRemain">$0</strong>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Savings Plan</h2>
+</div>
+
+<div class="card">
+  <div class="grid two">
+    <div class="field">
+      <label>Current Savings</label>
+      <input type="number" min="0" step=".01" id="savings" placeholder="0.00">
+    </div>
+
+    <div class="field">
+      <label>Savings Goal</label>
+      <input type="number" min="0" step=".01" id="goal" placeholder="0.00">
+    </div>
+
+    <div class="field">
+      <label>Target Date</label>
+      <input type="date" id="targetDate">
+    </div>
+
+    <div class="field">
+      <label>Contribution / Paycheck</label>
+      <input type="number" min="0" step=".01" id="contribution" placeholder="0.00">
     </div>
   </div>
 
-  <video id="bgVideo" class="bg-video" src="BG.MP4" muted defaultMuted loop playsinline webkit-playsinline preload="auto"></video>
-  <div class="feed" id="feed"></div>
-  <div class="toast" id="toast"></div>
+  <button class="btn primary full" style="margin-top:12px" id="saveSavings">
+    Save Savings Plan
+  </button>
+</div>
 
-  <div class="bottom-nav" id="bottomNav">
-    <div class="bottom-tab" id="groupLearn" data-group="learn"><i class="fa-solid fa-graduation-cap"></i><span>Learn</span></div>
-    <div class="bottom-tab active" id="groupReel" data-group="reel"><i class="fa-solid fa-film"></i><span>Reel</span></div>
-    <div class="bottom-tab" id="groupTruth" data-group="truth"><i class="fa-solid fa-crown"></i><span>Truth</span></div>
-  </div>
+</section>
 
-  <div class="modal-overlay" id="introModal">
-    <div class="modal intro-modal">
-      <div class="intro-hero">
-        <div class="intro-hero-icon"><i class="fa-solid fa-crown"></i></div>
-        <h2>Browse · Review · Search</h2>
-        <p class="intro-tagline">Scripture Reasoning Develops Critical Thinking</p>
-      </div>
-      <div class="intro-body">
-        <p class="intro-lead">This is not endless scrolling. Browse what is true, review what you saved, and search the Scriptures for yourself.</p>
-        <div class="intro-cards">
-          <button type="button" class="intro-card" data-intro="browse">
-            <div class="intro-card-icon"><i class="fa-solid fa-compass"></i></div>
-            <div class="intro-card-text">
-              <strong>Browse</strong>
-              <span>Incline your ear and listen closely to the words of the wise. — Proverbs 22:17</span>
-            </div>
-          </button>
-          <button type="button" class="intro-card" data-intro="review">
-            <div class="intro-card-icon"><i class="fa-solid fa-gem"></i></div>
-            <div class="intro-card-text">
-              <strong>Review</strong>
-              <span>Ponder over what you have learned and keep thinking about it. — Psalm 119:97</span>
-            </div>
-          </button>
-          <button type="button" class="intro-card" data-intro="search">
-            <div class="intro-card-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
-            <div class="intro-card-text">
-              <strong>Search</strong>
-              <span>Carefully examine the Scriptures to see whether these things are so. — Acts 17:11</span>
-            </div>
-          </button>
-        </div>
-        <div class="intro-groups">
-          <div class="intro-group-pill"><i class="fa-solid fa-graduation-cap"></i> Learn</div>
-          <div class="intro-group-pill"><i class="fa-solid fa-film"></i> Reel</div>
-          <div class="intro-group-pill"><i class="fa-solid fa-crown"></i> Truth</div>
-        </div>
-        <label class="intro-check">
-          <input type="checkbox" id="introDontShow"> Do not show this again
-        </label>
-        <button class="btn btn-primary intro-start" id="introStartBtn">START</button>
-      </div>
+
+<!-- REPORTS -->
+<section class="page" id="page-reports">
+
+<h1>Reports</h1>
+<p class="sub">Print or save a clean expense report for any period.</p>
+
+<div class="card noPrint">
+  <div class="grid two">
+    <div class="field">
+      <label>Report Type</label>
+      <select id="reportType">
+        <option value="monthly">Monthly</option>
+        <option value="weekly">Weekly</option>
+        <option value="custom">Custom Range</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Month / Start Date</label>
+      <input type="date" id="reportStart">
+    </div>
+
+    <div class="field" id="reportEndWrap" style="display:none">
+      <label>End Date</label>
+      <input type="date" id="reportEnd">
+    </div>
+
+    <div class="field">
+      <label>Include Paid History</label>
+      <select id="reportHistory">
+        <option value="yes">Yes</option>
+        <option value="no">Planned bills only</option>
+      </select>
     </div>
   </div>
 
-  <div class="modal-overlay" id="profileModal">
-    <div class="modal">
-      <h2>Your Profile</h2>
-      <div class="modal-section">
-        <div class="modal-section-title">Account</div>
-        <div class="profile-header-row">
-          <div class="avatar-preview" id="avatarPreview"><i class="fa-solid fa-user"></i></div>
-          <div class="profile-header-fields">
-            <label>Username</label>
-            <input type="text" id="nameInput" placeholder="Enter a name" maxlength="24">
-            <div class="avatar-actions">
-              <label class="upload-btn">Upload<input type="file" id="fileInput" accept="image/*"></label>
-              <button type="button" class="btn-reset-avatar" id="resetAvatarBtn">Default</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">Settings</div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-name">Dark mode</span>
-            <span class="setting-desc">Light or dark appearance</span>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="darkToggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-name">Audio</span>
-            <span class="setting-desc">Auto-read on each card</span>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="audioToggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <span class="setting-name">Card order</span>
-            <span class="setting-desc">Default or Shuffle</span>
-          </div>
-          <div class="segmented" id="orderSegment">
-            <button type="button" class="seg-btn active" data-order="default">Default</button>
-            <button type="button" class="seg-btn" data-order="shuffle">Shuffle</button>
-          </div>
-        </div>
-        <div class="setting-row theme-row">
-          <div class="setting-info"><span class="setting-name">Theme</span></div>
-          <div class="theme-options" id="themeOptions"></div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-title">Analytics</div>
-        <div class="profile-stats">
-          <div class="stat-row"><span class="stat-label">Streak</span><span class="stat-value"><span id="profileStreak">0</span> <span id="todayCheck"><i class="fa-regular fa-square"></i></span></span></div>
-          <div class="stat-row"><span class="stat-label">Time Left</span><span class="stat-value" id="timeLeft">-- HRS -- MINS</span></div>
-          <div class="stat-row"><span class="stat-label">Browse</span><span class="stat-value"><span id="scrollEXP">0</span> EXP</span></div>
-          <div class="stat-row"><span class="stat-label">Shares</span><span class="stat-value"><span id="shareCount">0</span></span></div>
-          <div class="stat-row"><span class="stat-label">Review</span><span class="stat-value"><span id="reviewStat">0</span></span></div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <button type="button" class="btn btn-secondary" id="openIntroBtn" style="width:100%;">Intro</button>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-        <button class="btn btn-primary" id="saveBtn">Save</button>
-      </div>
+  <div class="row" style="margin-top:12px">
+    <button class="btn primary" id="generateReport">Generate Report</button>
+    <button class="btn" id="printReport">Print / Save PDF</button>
+  </div>
+</div>
+
+<div class="section noPrint">
+  <h2>Report Preview</h2>
+</div>
+
+<div id="reportPreview"></div>
+
+</section>
+
+
+<!-- SETTINGS -->
+<section class="page" id="page-settings">
+
+<h1>Settings</h1>
+<p class="sub">Protect, move, and manage your Redline data.</p>
+
+<div class="section">
+  <h2>Appearance</h2>
+</div>
+
+<div class="card">
+  <p class="muted" style="margin:0 0 14px">
+    Choose your look. Redline is the dark original. Grayman is a clean light grayscale.
+  </p>
+
+  <div class="theme-grid">
+    <div class="theme-card active" data-theme="redline" id="themeRedline">
+      <div class="theme-swatch redline"></div>
+      <strong>Redline</strong>
+      <span>Dark · Red accent</span>
+    </div>
+    <div class="theme-card" data-theme="grayman" id="themeGrayman">
+      <div class="theme-swatch grayman"></div>
+      <strong>Grayman</strong>
+      <span>Light · Grayscale</span>
     </div>
   </div>
+</div>
 
-  <script src="truth.js"></script>
-  <script src="learn.js"></script>
-  <script src="reel.js"></script>
-  <script src="script.js"></script>
+<div class="section">
+  <h2>Backup & Restore</h2>
+</div>
+
+<div class="card">
+  <p class="muted" style="margin:0 0 14px">
+    Redline automatically saves in this browser.
+    Backups let you move your budget to another device or keep a safe copy.
+  </p>
+
+  <div class="row">
+    <button class="btn primary" id="exportAll">Export Full Backup</button>
+    <button class="btn" id="importAll">Import Full Backup</button>
+    <input hidden type="file" id="allInput" accept=".json,application/json">
+  </div>
+</div>
+
+<div class="section">
+  <h2>Danger Zone</h2>
+</div>
+
+<div class="card">
+  <button class="btn danger full" id="clearData">
+    Erase All Redline Data
+  </button>
+</div>
+
+</section>
+
+</main>
+</div>
+
+
+<!-- NAVIGATION -->
+<nav class="nav">
+  <button class="active" data-page="dashboard">
+    <i>⌂</i> Home
+  </button>
+  <button data-page="bills">
+    <i>▤</i> Bills
+  </button>
+  <button data-page="paycheck">
+    <i>$</i> Paycheck
+  </button>
+  <button data-page="savings">
+    <i>◇</i> Savings
+  </button>
+  <button data-page="reports">
+    <i>▥</i> Reports
+  </button>
+  <button data-page="settings">
+    <i>⚙</i> Settings
+  </button>
+</nav>
+
+
+<!-- MODAL -->
+<div class="modalbg" id="modalBg">
+  <div class="modal" id="modal"></div>
+</div>
+
+
+<!-- TOAST -->
+<div class="toastbox" id="toastbox"></div>
+
+
+<script src="script.js"></script>
 </body>
 </html>
