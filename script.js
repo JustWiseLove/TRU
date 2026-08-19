@@ -1,1183 +1,745 @@
-const KEY = "redline_budget_v1";
-const THEME_KEY = "redline_theme";
+const themes = [
+  {name:"Black",  color:"#1a1a1a", soft:"#f0f0f0", dark:"#000000"},
+  {name:"Red",    color:"#c62828", soft:"#ffebee", dark:"#8e0000"},
+  {name:"Orange", color:"#ef6c00", soft:"#fff3e0", dark:"#b53d00"},
+  {name:"Yellow", color:"#f9a825", soft:"#fffde7", dark:"#c17900"},
+  {name:"Green",  color:"#008000", soft:"#e8f5e9", dark:"#006600"},
+  {name:"Blue",   color:"#1565c0", soft:"#e3f2fd", dark:"#0d47a1"},
+  {name:"Violet", color:"#6a1b9a", soft:"#f3e5f5", dark:"#4a148c"},
+  {name:"Pink",   color:"#e91e63", soft:"#fce4ec", dark:"#c2185b"}
+];
 
-/* THEME */
-function getTheme(){
-  return localStorage.getItem(THEME_KEY) || "redline";
-}
-
-function applyTheme(theme){
-  const t = theme === "grayman" ? "grayman" : "redline";
-  document.documentElement.setAttribute("data-theme", t);
-  localStorage.setItem(THEME_KEY, t);
-
-  // Update browser chrome color
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if(meta){
-    meta.content = t === "grayman" ? "#f0f0f2" : "#080808";
-  }
-
-  // Sync theme cards
-  document.querySelectorAll(".theme-card").forEach(card => {
-    card.classList.toggle("active", card.dataset.theme === t);
-  });
-}
-
-function initTheme(){
-  applyTheme(getTheme());
-
-  document.querySelectorAll(".theme-card").forEach(card => {
-    card.onclick = () => {
-      applyTheme(card.dataset.theme);
-      toast(card.dataset.theme === "grayman" ? "Grayman theme on" : "Redline theme on");
-    };
-  });
-}
-
-const money = n =>
-  new Intl.NumberFormat("en-US",{
-    style:"currency",
-    currency:"USD"
-  }).format(Number(n)||0);
-
-const esc = s =>
-  String(s ?? "")
-    .replace(/[&<>"']/g,m=>({
-      "&":"&amp;",
-      "<":"&lt;",
-      ">":"&gt;",
-      '"':"&quot;",
-      "'":"&#039;"
-    }[m]));
-
-const iso = d => {
-  let x = new Date(d);
-  return new Date(
-    x.getTime() -
-    x.getTimezoneOffset()*60000
-  )
-  .toISOString()
-  .slice(0,10);
+let profile = {
+  name: localStorage.getItem("twltt_name") || "",
+  avatar: localStorage.getItem("twltt_avatar") || "",
+  avatarType: localStorage.getItem("twltt_avatarType") || "icon",
+  theme: localStorage.getItem("twltt_theme") || "#1a1a1a"
 };
+let retained = new Set(JSON.parse(localStorage.getItem("twltt_liked") || "[]"));
+let currentTab = "browse";
+let currentGroup = "reel";
+let currentCards = typeof reelCards !== "undefined" ? reelCards : [];
+let currentIndex = 0;
+let scrolledToday = false;
+let isLooping = false;
+let totalScrolls = parseInt(localStorage.getItem("twltt_scrolls") || "0", 10);
+let totalShares = parseInt(localStorage.getItem("twltt_shares") || "0", 10);
+let searchQuery = "";
+let darkMode = localStorage.getItem("twltt_dark") === "1";
+let savedIndex = { truth: 0, learn: 0, reel: 0 };
+let isSpeaking = false;
+let preferredVoice = null;
+let audioOn = localStorage.getItem("twltt_audio") === "1";
+let cardOrder = localStorage.getItem("twltt_order") || "default";
+let shuffledCache = { truth: null, learn: null, reel: null };
+let autoSpeakTimer = null;
+let lastSpokenId = null;
 
-const today = () => iso(new Date());
-
-const parseDate = s => {
-  if(!s) return null;
-  let [y,m,d] = s.split("-").map(Number);
-  return new Date(y, m-1, d);
-};
-
-const fmtDate = d =>
-  d
-  ? parseDate(iso(d)).toLocaleDateString(
-      "en-US",
-      {
-        month:"short",
-        day:"numeric",
-        year:"numeric"
-      }
-    )
-  : "â";
-
-const daysBetween = (a,b) =>
-  Math.round(
-    (
-      parseDate(iso(b)) -
-      parseDate(iso(a))
-    ) / 86400000
-  );
-
-const uid = () =>
-  crypto.randomUUID
-    ? crypto.randomUUID()
-    : Date.now()+"_"+Math.random();
-
-const monthDays = (y,m) =>
-  new Date(y,m+1,0).getDate();
-
-/* Snap a date forward to the preferred weekday (keeps same day if it already matches) */
-const weekdayMap = {
-  Sunday:0, Monday:1, Tuesday:2, Wednesday:3,
-  Thursday:4, Friday:5, Saturday:6
-};
-
-function snapToWeekday(dateStr, weekdayName){
-  let d = parseDate(dateStr);
-  if(!d) return dateStr || today();
-  let target = weekdayMap[weekdayName];
-  if(target === undefined) target = 5; // Friday fallback
-  let current = d.getDay();
-  let diff = (target - current + 7) % 7;
-  if(diff !== 0){
-    d.setDate(d.getDate() + diff);
-  }
-  return iso(d);
+function todayKey() {
+  const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
+  return `${est.getFullYear()}-${String(est.getMonth()+1).padStart(2,"0")}-${String(est.getDate()).padStart(2,"0")}`;
+}
+function getDaysSet() { try { return new Set(JSON.parse(localStorage.getItem("twltt_days") || "[]")); } catch { return new Set(); } }
+function saveDaysSet(s) { localStorage.setItem("twltt_days", JSON.stringify([...s])); }
+function updateDayCounter() {
+  const d = getDaysSet();
+  const dayEl = document.getElementById("dayCount");
+  if (dayEl) dayEl.textContent = d.size;
+  const pr = document.getElementById("profileStreak"); if (pr) pr.textContent = d.size;
+}
+function markScrolledToday() {
+  if (scrolledToday) return;
+  scrolledToday = true;
+  const d = getDaysSet(); d.add(todayKey()); saveDaysSet(d);
+  updateDayCounter(); updateTodayCheck();
+}
+function incrementScrollEXP() {
+  totalScrolls++;
+  localStorage.setItem("twltt_scrolls", totalScrolls);
+  const e = document.getElementById("scrollEXP"); if (e) e.textContent = totalScrolls;
+}
+function incrementShares() {
+  totalShares++;
+  localStorage.setItem("twltt_shares", totalShares);
+  const e = document.getElementById("shareCount"); if (e) e.textContent = totalShares;
+}
+function updateTodayCheck() {
+  const c = document.getElementById("todayCheck");
+  if (c) c.innerHTML = getDaysSet().has(todayKey()) ? '<i class="fa-solid fa-square-check"></i>' : '<i class="fa-regular fa-square"></i>';
+}
+function updateTimeLeft() {
+  const el = document.getElementById("timeLeft"); if (!el) return;
+  const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
+  const next = new Date(est); next.setHours(24, 0, 0, 0);
+  const diff = next - est;
+  el.textContent = `${Math.floor(diff/3600000)} HRS ${Math.floor((diff%3600000)/60000)} MINS`;
+}
+function showToast(m) {
+  const t = document.getElementById("toast");
+  t.textContent = m; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2200);
+}
+function saveRetained() { localStorage.setItem("twltt_liked", JSON.stringify([...retained])); updateReviewCount(); }
+function updateReviewCount() {
+  const e = document.getElementById("reviewCount");
+  if (e) e.textContent = retained.size ? ` ${retained.size}` : "";
+  const s = document.getElementById("reviewStat");
+  if (s) s.textContent = retained.size;
 }
 
-
-let state = {
-  schemaVersion:1,
-
-  settings:{
-    frequency:"biweekly",
-    payday:"Friday",
-    nextPay:today(),
-    payAmount:0,
-    checking:0,
-    savePerPay:0
-  },
-
-  bills:[],
-
-  savings:{
-    current:0,
-    goal:0,
-    targetDate:"",
-    contribution:0
-  },
-
-  payments:[]
-};
-
-
-/* STORAGE */
-
-function load(){
-  try{
-    const x = JSON.parse(localStorage.getItem(KEY));
-
-    if(x && x.schemaVersion){
-      state = {
-        ...state,
-        ...x,
-        settings:{
-          ...state.settings,
-          ...x.settings
-        },
-        savings:{
-          ...state.savings,
-          ...x.savings
-        },
-        bills: Array.isArray(x.bills) ? x.bills : [],
-        payments: Array.isArray(x.payments) ? x.payments : []
-      };
-    }
-  }catch(e){
-    console.warn(e);
-  }
+function applyTheme(color) {
+  const t = themes.find(x => x.color === color) || themes[0];
+  document.documentElement.style.setProperty("--theme", t.color);
+  document.documentElement.style.setProperty("--theme-dark", t.dark);
+  document.documentElement.style.setProperty("--theme-soft", t.soft);
+  profile.theme = t.color;
+  document.body.setAttribute("data-theme", t.name.toLowerCase());
+}
+function applyDarkMode(on) {
+  darkMode = !!on;
+  document.body.classList.toggle("dark", darkMode);
+  localStorage.setItem("twltt_dark", darkMode ? "1" : "0");
+  const dt = document.getElementById("darkToggle");
+  if (dt) dt.checked = darkMode;
 }
 
-
-function save(){
-  localStorage.setItem(KEY, JSON.stringify(state));
+function allCards() {
+  return [
+    ...(typeof truthCards !== "undefined" ? truthCards : []),
+    ...(typeof learnCards !== "undefined" ? learnCards : []),
+    ...(typeof reelCards !== "undefined" ? reelCards : [])
+  ];
 }
-
-
-/* TOAST */
-
-function toast(msg,type="ok"){
-  let d = document.createElement("div");
-  d.className = "toast "+type;
-  d.textContent = msg;
-  document.getElementById("toastbox").appendChild(d);
-  setTimeout(()=>d.remove(), 2600);
+function cardMatches(card, q) {
+  if (!q) return false;
+  const s = q.toLowerCase().trim();
+  if (!s) return false;
+  const hay = [
+    card.ref, card.quote, card.text, card.category, card.title,
+    card.num != null ? String(card.num) : "",
+    getSourceLabel(card)
+  ].filter(Boolean).join(" ").toLowerCase();
+  return hay.includes(s);
 }
-
-
-/* BILL OCCURRENCES */
-
-function occurrences(b, start=today(), end=null){
-  let s = parseDate(start);
-  let limit = end
-    ? parseDate(end)
-    : new Date(s.getFullYear()+2, s.getMonth(), s.getDate());
-
-  let out=[];
-
-  if(!b.active) return out;
-
-  if(b.frequency==="one"){
-    let d = parseDate(b.dueDate);
-    if(d >= s && d <= limit){
-      out.push(d);
-    }
-    return out;
-  }
-
-  let cur;
-
-  if(b.frequency==="weekly" || b.frequency==="biweekly"){
-    cur = parseDate(b.startDate || b.dueDate);
-    let step = b.frequency==="weekly" ? 7 : 14;
-
-    while(cur < s){
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate()+step);
-    }
-
-    while(cur <= limit){
-      out.push(new Date(cur));
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate()+step);
-    }
-  }
-  else if(b.frequency==="monthly"){
-    let base = parseDate(b.dueDate);
-    let y = s.getFullYear();
-    let m = s.getMonth();
-
-    cur = new Date(y, m, Math.min(base.getDate(), monthDays(y,m)));
-
-    if(cur < s){
-      m++;
-      if(m>11){ m=0; y++; }
-      cur = new Date(y, m, Math.min(base.getDate(), monthDays(y,m)));
-    }
-
-    while(cur <= limit){
-      out.push(new Date(cur));
-      m++;
-      if(m>11){ m=0; y++; }
-      cur = new Date(y, m, Math.min(base.getDate(), monthDays(y,m)));
-    }
-  }
-  else if(b.frequency==="quarterly"){
-    let base = parseDate(b.dueDate);
-    cur = new Date(base);
-
-    while(cur < s){
-      let nm = cur.getMonth()+3;
-      let ny = cur.getFullYear();
-      cur = new Date(ny, nm, Math.min(base.getDate(), monthDays(ny,nm)));
-    }
-
-    while(cur <= limit){
-      out.push(new Date(cur));
-      let nm = cur.getMonth()+3;
-      let ny = cur.getFullYear();
-      cur = new Date(ny, nm, Math.min(base.getDate(), monthDays(ny,nm)));
-    }
-  }
-  else if(b.frequency==="yearly"){
-    let base = parseDate(b.dueDate);
-    let y = s.getFullYear();
-
-    cur = new Date(y, base.getMonth(), Math.min(base.getDate(), monthDays(y, base.getMonth())));
-
-    if(cur < s){
-      y++;
-      cur = new Date(y, base.getMonth(), Math.min(base.getDate(), monthDays(y, base.getMonth())));
-    }
-
-    while(cur <= limit){
-      out.push(new Date(cur));
-      y++;
-      cur = new Date(y, base.getMonth(), Math.min(base.getDate(), monthDays(y, base.getMonth())));
-    }
-  }
-
-  return out;
+function getSourceLabel(card) {
+  if (typeof reelCards !== "undefined" && reelCards.some(c => c.id === card.id)) return "Reel";
+  if (typeof learnCards !== "undefined" && learnCards.some(c => c.id === card.id)) return "Learn";
+  return "Truth";
 }
-
-
-function nextOccurrence(b, from=today()){
-  let end = iso(
-    new Date(
-      parseDate(from).getFullYear()+1,
-      parseDate(from).getMonth(),
-      parseDate(from).getDate()
-    )
-  );
-  return occurrences(b, from, end)[0] || null;
-}
-
-
-function activeBills(){
-  return state.bills.filter(b => b.active !== false);
-}
-
-
-function monthlyEstimate(b){
-  let a = Number(b.amount)||0;
-  if(b.frequency==="weekly") return a*52/12;
-  if(b.frequency==="biweekly") return a*26/12;
-  if(b.frequency==="quarterly") return a/3;
-  if(b.frequency==="yearly") return a/12;
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
   return a;
 }
-
-
-function upcomingBills(days=45){
-  let end = iso(
-    new Date(
-      parseDate(today()).getTime() + days*86400000
-    )
-  );
-
-  let arr=[];
-
-  activeBills().forEach(b=>{
-    occurrences(b, today(), end).forEach(d=>{
-      arr.push({b, d});
-    });
-  });
-
-  return arr.sort((a,b)=>a.d-b.d);
-}
-
-
-/* PAYCHECKS */
-
-function payDates(count=8){
-  let s = parseDate(state.settings.nextPay || today());
-  let step = state.settings.frequency==="weekly" ? 7 : 14;
-  let a=[];
-
-  for(let i=0; i<count; i++){
-    a.push(new Date(s));
-    s = new Date(s.getFullYear(), s.getMonth(), s.getDate()+step);
+function getGroupCards(group) {
+  let base = [];
+  if (group === "truth") base = typeof truthCards !== "undefined" ? truthCards : [];
+  else if (group === "learn") base = typeof learnCards !== "undefined" ? learnCards : [];
+  else base = typeof reelCards !== "undefined" ? reelCards : [];
+  if (cardOrder === "shuffle") {
+    if (!shuffledCache[group] || shuffledCache[group].length !== base.length) {
+      shuffledCache[group] = shuffleArray(base);
+    }
+    return shuffledCache[group];
   }
-
-  return a;
+  return base;
 }
 
-
-function billPaid(b,d){
-  let key = b.id+"_"+iso(d);
-  return state.payments.some(p=>p.key===key);
-}
-
-
-function markPaid(b,d){
-  let key = b.id+"_"+iso(d);
-  let i = state.payments.findIndex(p=>p.key===key);
-
-  if(i>=0){
-    state.payments.splice(i,1);
-  }else{
-    state.payments.push({
-      id:uid(),
-      key,
-      billId:b.id,
-      date:iso(d),
-      amount:Number(b.amount)||0
-    });
+function pickBestVoice() {
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  const prefer = currentGroup === "reel"
+    ? ["Samantha", "Karen", "Moira", "Tessa", "Google US English", "Microsoft Zira"]
+    : ["Alex", "Aaron", "Daniel", "Fred", "Google UK English Male", "Microsoft David"];
+  for (const name of prefer) {
+    const v = voices.find(x => x.name.includes(name) && x.lang.startsWith("en"));
+    if (v) return v;
   }
-
-  save();
-  render();
+  return voices.find(x => x.lang === "en-US") || voices.find(x => x.lang.startsWith("en")) || voices[0];
+}
+function loadVoices() { preferredVoice = pickBestVoice(); }
+if (typeof speechSynthesis !== "undefined") {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
 }
 
-
-function paycheckPlan(date){
-  let start = iso(date);
-  let next = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate() + (state.settings.frequency==="weekly" ? 7 : 14)
-  );
-  let end = iso(next);
-
-  let items=[];
-
-  activeBills().forEach(b=>{
-    occurrences(b, start, end).forEach(d=>{
-      if(!billPaid(b,d)){
-        items.push({b, d});
-      }
-    });
-  });
-
-  let total = items.reduce((s,x)=> s + Number(x.b.amount||0), 0);
-  let saveAmt = Number(state.settings.savePerPay||0);
-  let remaining = Number(state.settings.payAmount||0) - total - saveAmt;
-
-  return { items, total, save:saveAmt, remaining };
+function stopSpeaking() {
+  if (autoSpeakTimer) { clearTimeout(autoSpeakTimer); autoSpeakTimer = null; }
+  if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+  isSpeaking = false;
+  document.querySelectorAll(".scripture-quote .word.active, .truth-text .word.active").forEach(w => w.classList.remove("active"));
 }
-
-
-/* RENDER */
-
-function render(){
-  renderDashboard();
-  renderBills();
-  renderPay();
-  renderSavings();
-  renderReports();
-  save();
+function wrapWords(el, text) {
+  const words = text.split(/(\s+)/);
+  el.innerHTML = words.map(w => /^\s+$/.test(w) ? w : `<span class="word">${w}</span>`).join("");
+  return [...el.querySelectorAll(".word")];
 }
+function speakCurrentCard(force) {
+  if (typeof speechSynthesis === "undefined") return;
+  if (!currentCards.length || currentTab === "search") return;
+  if (!force && !audioOn) return;
+  const card = currentCards[currentIndex % currentCards.length];
+  if (!card) return;
+  const speakText = card.quote || card.text || "";
+  if (!speakText) return;
+  if (!force && lastSpokenId === card.id && isSpeaking) return;
+  try { speechSynthesis.resume(); } catch (e) {}
+  preferredVoice = pickBestVoice();
+  stopSpeaking();
+  lastSpokenId = card.id;
 
-
-/* DASHBOARD */
-
-function renderDashboard(){
-  document.getElementById("dChecking").textContent = money(state.settings.checking);
-
-  // Keep the quick-update field in sync
-  let qc = document.getElementById("quickChecking");
-  if(qc && document.activeElement !== qc){
-    qc.value = state.settings.checking || "";
+  const feed = document.getElementById("feed");
+  const visibleCards = feed.querySelectorAll(".card");
+  let textEl = null;
+  for (const c of visibleCards) {
+    if (parseInt(c.dataset.index, 10) === currentIndex) {
+      textEl = c.querySelector(".scripture-quote") || c.querySelector(".truth-text");
+      break;
+    }
   }
-
-  let p = payDates(1)[0];
-  let plan = paycheckPlan(p);
-  let up = upcomingBills(45);
-
-  document.getElementById("dPay").textContent = money(state.settings.payAmount);
-  document.getElementById("dPayDate").textContent = p ? fmtDate(p) : "Not set";
-
-  document.getElementById("dBills").textContent = money(
-    up.reduce((s,x)=> s + Number(x.b.amount||0), 0)
-  );
-  document.getElementById("dBillCount").textContent = up.length + " upcoming";
-
-  document.getElementById("dSavings").textContent = money(state.savings.current);
-  document.getElementById("dSavingsGoal").textContent =
-    state.savings.goal ? money(state.savings.goal)+" goal" : "No goal";
-
-  let safe =
-    Number(state.settings.checking||0)
-    -
-    up.slice(0,10).reduce((s,x)=>
-      s + (billPaid(x.b, x.d) ? 0 : Number(x.b.amount||0)), 0)
-    -
-    Number(state.settings.savePerPay||0);
-
-  document.getElementById("safeSpend").textContent = money(safe);
-  document.getElementById("safeNote").textContent =
-    safe < 0
-    ? "Shortfall detected â upcoming obligations exceed available funds."
-    : "After upcoming obligations and planned savings.";
-
-  document.getElementById("safeHero").classList.toggle("warn", safe<0);
-
-  document.getElementById("dashAlert").innerHTML =
-    safe<0
-    ? `
-    <div class="card" style="border-color:var(--danger-border);color:var(--safe-warn);font-size:12px">
-      <b>â  Funding warning</b><br>
-      Review your upcoming bills or increase your available funds.
-    </div>`
-    : "";
-
-  document.getElementById("upCount").textContent = up.length + " next 45 days";
-
-  document.getElementById("dashBills").innerHTML =
-    up.slice(0,5).map(x => billHTML(x.b, x.d)).join("")
-    ||
-    empty("No upcoming bills", "Add your first bill to start planning.");
-
-  document.getElementById("dashPay").innerHTML = payHTML(p, plan);
-}
-
-
-/* BILL HTML */
-
-function billHTML(b,d){
-  let paid = billPaid(b,d);
-  let days = daysBetween(today(), d);
-
-  let cls =
-    paid ? "green"
-    : days<=3 ? "red"
-    : days<=7 ? "yellow"
-    : "";
-
-  return `
-  <div class="bill">
-    <div class="billtop">
-      <div>
-        <div class="billname">${esc(b.name)}</div>
-        <div class="billmeta">
-          ${esc(b.category||"General")} Â· ${esc(b.frequency)}
-        </div>
-      </div>
-      <div class="amt">${money(b.amount)}</div>
-    </div>
-
-    <div class="billbottom">
-      <div>
-        <span class="badge ${cls}">
-          ${
-            paid ? "PAID"
-            : days<0 ? "OVERDUE"
-            : days===0 ? "DUE TODAY"
-            : days+" days"
-          }
-        </span>
-        <span class="muted">Due ${fmtDate(d)}</span>
-      </div>
-
-      <div class="row">
-        <button class="btn mini" onclick="editBill('${b.id}')">Edit</button>
-        <button
-          class="btn mini ${paid?"danger":""}"
-          onclick="
-            markPaid(
-              state.bills.find(x=>x.id==='${b.id}'),
-              parseDate('${iso(d)}')
-            )
-          "
-        >
-          ${paid?"Undo":"Paid"}
-        </button>
-      </div>
-    </div>
-  </div>
-  `;
-}
-
-
-/* PAYCHECK HTML */
-
-function payHTML(d,p){
-  return `
-  <div class="card">
-    <div class="split">
-      <div>
-        <div class="eyebrow">${fmtDate(d)}</div>
-        <div style="font-size:22px;font-weight:900">
-          ${money(state.settings.payAmount)}
-        </div>
-      </div>
-      <span class="badge ${p.remaining<0?"red":"green"}">
-        ${p.remaining<0?"SHORTFALL":"ON TRACK"}
-      </span>
-    </div>
-
-    <div style="margin-top:10px">
-      ${
-        p.items.slice(0,7).map(x => `
-          <div class="payrow">
-            <span>${esc(x.b.name)} Â· ${fmtDate(x.d)}</span>
-            <b>${money(x.b.amount)}</b>
-          </div>
-        `).join("")
-        ||
-        `<div class="muted" style="padding:10px 0">
-          No bills assigned to this pay period.
-        </div>`
-      }
-    </div>
-
-    <div class="payrow" style="margin-top:7px">
-      <span>Bill allocations</span>
-      <b>${money(p.total)}</b>
-    </div>
-
-    <div class="payrow">
-      <span>Savings</span>
-      <b>${money(p.save)}</b>
-    </div>
-
-    <div class="payrow">
-      <span>Remaining</span>
-      <b class="${p.remaining<0?"red":"green"}">${money(p.remaining)}</b>
-    </div>
-  </div>
-  `;
-}
-
-
-/* EMPTY */
-
-function empty(a,b){
-  return `
-  <div class="empty">
-    <b>${a}</b>
-    ${b}
-  </div>
-  `;
-}
-
-
-/* BILLS */
-
-function renderBills(){
-  let bs = activeBills();
-
-  document.getElementById("bCount").textContent = bs.length;
-  document.getElementById("bListCount").textContent = bs.length + " active";
-
-  document.getElementById("bMonthly").textContent = money(
-    bs.reduce((s,b)=> s + monthlyEstimate(b), 0)
-  );
-
-  let arr=[];
-  bs.forEach(b=>{
-    let d = nextOccurrence(b);
-    if(d) arr.push({b, d});
-  });
-
-  arr.sort((a,b)=> a.d-b.d);
-
-  document.getElementById("billList").innerHTML =
-    arr.map(x => billHTML(x.b, x.d)).join("")
-    ||
-    empty("No bills yet", "Tap Add Bill to create your first obligation.");
-}
-
-
-/* PAYCHECK PAGE */
-
-function renderPay(){
-  document.getElementById("frequency").value = state.settings.frequency;
-  document.getElementById("payday").value = state.settings.payday;
-  document.getElementById("nextPay").value = state.settings.nextPay || today();
-  document.getElementById("payAmount").value = state.settings.payAmount || "";
-  document.getElementById("checking").value = state.settings.checking || "";
-  document.getElementById("savePerPay").value = state.settings.savePerPay || "";
-
-  document.getElementById("payList").innerHTML =
-    payDates(8).map(d => payHTML(d, paycheckPlan(d))).join("");
-}
-
-
-/* SAVINGS */
-
-function renderSavings(){
-  let s = Number(state.savings.current||0);
-  let g = Number(state.savings.goal||0);
-  let pct = g ? Math.min(100, s/g*100) : 0;
-
-  document.getElementById("sCurrent").textContent = money(s);
-  document.getElementById("sGoal").textContent = money(g);
-  document.getElementById("sRemain").textContent = money(Math.max(0, g-s));
-  document.getElementById("sBar").style.width = pct+"%";
-
-  document.getElementById("sTarget").textContent =
-    state.savings.targetDate
-    ? "Target: " + fmtDate(state.savings.targetDate)
-    : g
-    ? "Goal: " + money(g)
-    : "No goal set.";
-
-  document.getElementById("savings").value = s || "";
-  document.getElementById("goal").value = g || "";
-  document.getElementById("targetDate").value = state.savings.targetDate || "";
-  document.getElementById("contribution").value =
-    state.savings.contribution || state.settings.savePerPay || "";
-}
-
-
-/* REPORTS */
-
-function renderReports(){
-  let start = document.getElementById("reportStart");
-  if(!start.value){
-    let d = new Date();
-    start.value = iso(new Date(d.getFullYear(), d.getMonth(), 1));
-  }
-}
-
-
-/* MODAL */
-
-function openModal(title, body, onSave){
-  let bg = document.getElementById("modalBg");
-  let m = document.getElementById("modal");
-
-  m.innerHTML = `
-    <div class="modalhead">
-      <h2>${title}</h2>
-      <button class="close" id="closeModal">Ã</button>
-    </div>
-    ${body}
-    <div class="modalfoot">
-      <button class="btn" id="cancelModal">Cancel</button>
-      <button class="btn primary" id="modalSave">Save</button>
-    </div>
-  `;
-
-  bg.classList.add("show");
-
-  document.getElementById("closeModal").onclick = closeModal;
-  document.getElementById("cancelModal").onclick = closeModal;
-  document.getElementById("modalSave").onclick = () => {
-    if(onSave()) closeModal();
+  const words = textEl ? wrapWords(textEl, speakText) : [];
+  const utter = new SpeechSynthesisUtterance(speakText);
+  if (preferredVoice) utter.voice = preferredVoice;
+  utter.rate = 0.95;
+  utter.pitch = currentGroup === "reel" ? 1.05 : 0.98;
+  utter.lang = (preferredVoice && preferredVoice.lang) || "en-US";
+  let wordIndex = 0;
+  utter.onboundary = (e) => {
+    if (e.name !== "word" || !words.length) return;
+    words.forEach(w => w.classList.remove("active"));
+    if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
   };
-}
-
-
-function closeModal(){
-  document.getElementById("modalBg").classList.remove("show");
-}
-
-
-/* BILL FORM */
-
-function billForm(b={}){
-  let d = b.dueDate || today();
-
-  return `
-  <div class="grid two">
-    <div class="field">
-      <label>Bill Name</label>
-      <input id="fName" value="${esc(b.name||"")}" placeholder="e.g. Electric">
-    </div>
-
-    <div class="field">
-      <label>Amount</label>
-      <input type="number" min="0" step=".01" id="fAmount" value="${b.amount??""}" placeholder="0.00">
-    </div>
-
-    <div class="field">
-      <label>Due Date</label>
-      <input type="date" id="fDate" value="${d}">
-    </div>
-
-    <div class="field">
-      <label>Frequency</label>
-      <select id="fFreq">
-        <option value="monthly">Monthly</option>
-        <option value="weekly">Weekly</option>
-        <option value="biweekly">Every 2 Weeks</option>
-        <option value="quarterly">Quarterly</option>
-        <option value="yearly">Yearly</option>
-        <option value="one">One Time</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Category</label>
-      <input id="fCat" value="${esc(b.category||"")}" placeholder="General">
-    </div>
-
-    <div class="field">
-      <label>Priority</label>
-      <select id="fPriority">
-        <option>Normal</option>
-        <option>High</option>
-        <option>Critical</option>
-      </select>
-    </div>
-
-    <div class="field full">
-      <label>Notes</label>
-      <textarea id="fNotes" placeholder="Optional notesâ¦">${esc(b.notes||"")}</textarea>
-    </div>
-  </div>
-  `;
-}
-
-
-function showBill(b=null){
-  openModal(
-    b ? "Edit Bill" : "Add Bill",
-    billForm(b||{}),
-    () => {
-      let name = document.getElementById("fName").value.trim();
-      let amount = Number(document.getElementById("fAmount").value);
-      let date = document.getElementById("fDate").value;
-
-      if(!name || !date || amount<0){
-        toast("Please enter a bill name, date, and valid amount.", "err");
-        return false;
+  const approxMs = Math.max(180, (speakText.length / Math.max(speakText.split(/\s+/).length, 1)) * 55);
+  let fallbackTimer = null;
+  utter.onstart = () => {
+    isSpeaking = true;
+    setTimeout(() => {
+      if (isSpeaking && wordIndex < 2 && words.length) {
+        fallbackTimer = setInterval(() => {
+          if (!isSpeaking) { clearInterval(fallbackTimer); return; }
+          words.forEach(w => w.classList.remove("active"));
+          if (wordIndex < words.length) { words[wordIndex].classList.add("active"); wordIndex++; }
+          else clearInterval(fallbackTimer);
+        }, approxMs / 0.95);
       }
-
-      let obj = {
-        id: b?.id || uid(),
-        name,
-        amount,
-        dueDate: date,
-        startDate: date,
-        frequency: document.getElementById("fFreq").value,
-        category: document.getElementById("fCat").value.trim() || "General",
-        priority: document.getElementById("fPriority").value,
-        notes: document.getElementById("fNotes").value.trim(),
-        active: true
-      };
-
-      if(b){
-        Object.assign(b, obj);
-      }else{
-        state.bills.push(obj);
-      }
-
-      save();
-      render();
-      toast(b ? "Bill updated" : "Bill added");
-      return true;
+    }, 400);
+  };
+  utter.onend = () => {
+    if (fallbackTimer) clearInterval(fallbackTimer);
+    isSpeaking = false;
+    if (textEl) textEl.textContent = speakText;
+  };
+  utter.onerror = () => {
+    if (fallbackTimer) clearInterval(fallbackTimer);
+    isSpeaking = false;
+    if (textEl) textEl.textContent = speakText;
+  };
+  speechSynthesis.speak(utter);
+}
+function scheduleAutoSpeak() {
+  if (!audioOn || currentTab !== "browse") return;
+  if (autoSpeakTimer) clearTimeout(autoSpeakTimer);
+  autoSpeakTimer = setTimeout(() => {
+    if (audioOn && currentTab === "browse" && !isSpeaking) {
+      try { speechSynthesis.resume(); } catch (e) {}
+      speakCurrentCard(true);
     }
-  );
-
-  if(b){
-    document.getElementById("fFreq").value = b.frequency;
-    document.getElementById("fPriority").value = b.priority || "Normal";
-  }
+  }, 600);
 }
 
-
-window.editBill = id =>
-  showBill(state.bills.find(b=>b.id===id));
-
-
-function addBill(){
-  showBill();
+function ensureBgVideo() {
+  const v = document.getElementById("bgVideo");
+  if (!v) return null;
+  v.muted = true;
+  v.defaultMuted = true;
+  v.playsInline = true;
+  v.setAttribute("playsinline", "");
+  v.setAttribute("webkit-playsinline", "");
+  return v;
 }
+function playBgVideo() {
+  const v = ensureBgVideo();
+  if (!v) return;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => {
+    setTimeout(() => { try { v.play().catch(() => {}); } catch (e) {} }, 200);
+  });
+}
+function pauseBgVideo() {
+  const v = document.getElementById("bgVideo");
+  if (v) try { v.pause(); } catch (e) {}
+}
+function buildFeed() {
+  const feed = document.getElementById("feed");
+  playBgVideo();
+  feed.innerHTML = "";
+  feed.classList.toggle("search-mode", currentTab === "search");
+  const searchBar = document.getElementById("searchBar");
+  if (currentTab === "search") searchBar.classList.add("visible");
+  else searchBar.classList.remove("visible");
+  const bottomNav = document.getElementById("bottomNav");
+  if (currentTab === "browse") bottomNav.classList.remove("hidden");
+  else bottomNav.classList.add("hidden");
 
-
-/* REPORT GENERATOR */
-
-function generateReport(){
-  let type = document.getElementById("reportType").value;
-  let start = document.getElementById("reportStart").value;
-  let end;
-
-  if(type==="monthly"){
-    let d = parseDate(start);
-    end = iso(new Date(d.getFullYear(), d.getMonth()+1, 0));
+  if (currentTab === "review") {
+    currentCards = allCards().filter(c => retained.has(c.id));
+  } else if (currentTab === "search") {
+    const q = searchQuery.trim();
+    currentCards = q ? allCards().filter(c => cardMatches(c, q)) : [];
+  } else {
+    currentCards = getGroupCards(currentGroup);
   }
-  else if(type==="weekly"){
-    end = iso(new Date(parseDate(start).getTime() + 6*86400000));
-  }
-  else{
-    end = document.getElementById("reportEnd").value;
-  }
 
-  if(!start || !end){
-    toast("Choose a valid date range.", "err");
+  if (!currentCards.length) {
+    let emptyHtml = "";
+    if (currentTab === "review") {
+      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-gem"></i></div><h3>Nothing to review yet</h3><p>Tap Save on any card<br>to keep it here.</p></div>`;
+    } else if (currentTab === "search") {
+      emptyHtml = searchQuery.trim()
+        ? `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>No results for "${searchQuery}"</h3><p>Try another keyword.</p></div>`
+        : `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-magnifying-glass"></i></div><h3>Search</h3><p>Type a keyword to find<br>scriptures, topics, or facts.</p></div>`;
+    } else {
+      emptyHtml = `<div class="empty-state"><div class="big-icon"><i class="fa-solid fa-book-open"></i></div><h3>No cards</h3></div>`;
+    }
+    feed.innerHTML = emptyHtml;
+    document.getElementById("sideActions").style.display = "none";
     return;
   }
 
-  let planned=[];
-  let paid=[];
+  document.getElementById("sideActions").style.display = currentTab === "search" ? "none" : "flex";
+  const isSnap = currentTab === "browse";
+  const toRender = isSnap ? [...currentCards, ...currentCards] : currentCards;
 
-  activeBills().forEach(b=>{
-    occurrences(b, start, end).forEach(d=>{
-      let x = {b, d};
-      planned.push(x);
-      if(billPaid(b, d)) paid.push(x);
-    });
-  });
+  const frag = document.createDocumentFragment();
+  toRender.forEach((t, i) => {
+    const card = document.createElement("div");
+    card.className = "card reel-card";
+    card.dataset.index = i;
+    card.dataset.id = t.id;
+    const di = (i % currentCards.length) + 1;
+    const label = currentTab === "search" || currentTab === "review"
+      ? getSourceLabel(t)
+      : (currentGroup === "learn" ? "Learn" : currentGroup === "reel" ? "Reel" : "Truth");
 
-  let useHistory = document.getElementById("reportHistory").value === "yes";
-  let list = useHistory ? paid : planned;
-
-  let total = list.reduce((s,x)=> s + Number(x.b.amount||0), 0);
-
-  let categories={};
-  list.forEach(x=>{
-    let c = x.b.category || "General";
-    categories[c] = (categories[c] || 0) + Number(x.b.amount||0);
-  });
-
-  let income =
-    payDates(20)
-      .filter(d => d>=parseDate(start) && d<=parseDate(end))
-      .length
-    * Number(state.settings.payAmount||0);
-
-  let savingsContribution = Number(
-    state.savings.contribution || state.settings.savePerPay || 0
-  );
-
-  let paycheckCount =
-    payDates(20)
-      .filter(d => d>=parseDate(start) && d<=parseDate(end))
-      .length;
-
-  let savingsTotal = savingsContribution * paycheckCount;
-
-  document.getElementById("reportPreview").innerHTML = `
-  <div class="report">
-    <div class="reportActions noPrint">
-      <button class="btn" onclick="window.print()">Print Report</button>
-    </div>
-
-    <h3>
-      REDLINE â
-      ${type==="monthly" ? "MONTHLY" : type==="weekly" ? "WEEKLY" : "CUSTOM"}
-      MONEY REPORT
-    </h3>
-
-    <small>${fmtDate(start)} â ${fmtDate(end)}</small>
-
-    <div class="reportgrid">
-      <div class="reportbox">
-        <span>EST. INCOME</span>
-        <b>${money(income)}</b>
-      </div>
-      <div class="reportbox">
-        <span>${useHistory ? "PAID" : "PLANNED"} BILLS</span>
-        <b>${money(total)}</b>
-      </div>
-      <div class="reportbox">
-        <span>SAVINGS</span>
-        <b>${money(savingsTotal)}</b>
-      </div>
-      <div class="reportbox">
-        <span>REMAINING</span>
-        <b>${money(income-total-savingsTotal)}</b>
-      </div>
-    </div>
-
-    <h4>Expense Breakdown</h4>
-
-    <table class="reporttable">
-      <thead>
-        <tr>
-          <th>Category</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${
-          Object.entries(categories)
-            .sort((a,b)=> b[1]-a[1])
-            .map(([k,v]) => `
-              <tr>
-                <td>${esc(k)}</td>
-                <td>${money(v)}</td>
-              </tr>
-            `).join("")
-          ||
-          `<tr><td colspan="2">No expenses in this period.</td></tr>`
-        }
-      </tbody>
-    </table>
-
-    <h4 style="margin-top:20px">Bills</h4>
-
-    <table class="reporttable">
-      <thead>
-        <tr>
-          <th>Status</th>
-          <th>Bill</th>
-          <th>Due</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${
-          list.map(x => `
-            <tr>
-              <td>${billPaid(x.b, x.d) ? "Paid" : "Planned"}</td>
-              <td>${esc(x.b.name)}</td>
-              <td>${fmtDate(x.d)}</td>
-              <td>${money(x.b.amount)}</td>
-            </tr>
-          `).join("")
-          ||
-          `<tr><td colspan="4">No bills.</td></tr>`
-        }
-      </tbody>
-    </table>
-
-    <p style="margin-top:22px;font-size:9px;color:#777">
-      Generated by Redline Â· Your money. Your schedule. Your plan.
-    </p>
-  </div>
-  `;
-}
-
-
-/* DOWNLOAD */
-
-function download(name, data){
-  let a = document.createElement("a");
-  a.href = URL.createObjectURL(
-    new Blob([data], {type:"application/json"})
-  );
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
-
-/* EXPORT FULL BACKUP */
-
-function exportAll(){
-  download(
-    "redline-backup-"+today()+".json",
-    JSON.stringify(state, null, 2)
-  );
-  toast("Full backup exported");
-}
-
-
-/* EXPORT BILLS */
-
-function exportBills(){
-  download(
-    "redline-bills-"+today()+".json",
-    JSON.stringify({
-      schemaVersion:1,
-      exportDate: new Date().toISOString(),
-      bills: state.bills
-    }, null, 2)
-  );
-  toast("Bills exported");
-}
-
-
-/* FILE READER */
-
-function readFile(input, cb){
-  let f = input.files[0];
-  if(!f) return;
-
-  let r = new FileReader();
-  r.onload = () => {
-    try{
-      cb(JSON.parse(r.result));
-    }catch(e){
-      toast("Invalid JSON file.", "err");
+    const hint = (i === 0 && isSnap) ? '<div class="swipe-hint">Swipe up</div>' : '';
+    const groupClass = currentGroup || "truth";
+    card.setAttribute("data-group", groupClass);
+    let body;
+    if (t.title && !t.ref) {
+      // Reel â bold title, centered insight
+      body = `
+          <div class="category">${t.category || ""}</div>
+          <div class="reel-title">${t.title || ""}</div>
+          <div class="truth-text">${t.text || ""}</div>
+          <div class="card-meta">${label} | ${t.num} of ${currentCards.length}</div>`;
+    } else if (currentGroup === "learn") {
+      // Learn â teaching first, then scripture support
+      body = `
+          <div class="category">${t.category || ""}</div>
+          <div class="learn-point">${t.text || ""}</div>
+          <div class="scripture-ref">${t.ref || ""}</div>
+          <div class="scripture-quote">${t.quote || ""}</div>
+          <div class="card-meta">${label} | ${t.num} of ${currentCards.length}</div>`;
+    } else {
+      // Truth â scripture-forward
+      body = `
+          <div class="category">${t.category || ""}</div>
+          <div class="scripture-ref">${t.ref || t.title || ""}</div>
+          <div class="scripture-quote">${t.quote || ""}</div>
+          <div class="truth-text">${t.text || ""}</div>
+          <div class="card-meta">${label} | ${t.num} of ${currentCards.length}</div>`;
     }
-  };
-  r.readAsText(f);
-  input.value="";
+    card.innerHTML = `
+        <div class="card-content card-content--${groupClass}">${body}
+        </div>${hint}`;
+    frag.appendChild(card);
+  });
+  feed.appendChild(frag);
+
+  if (isSnap) {
+    const maxIdx = currentCards.length;
+    let start = savedIndex[currentGroup] || 0;
+    if (start < 0 || start >= maxIdx) start = 0;
+    currentIndex = start;
+    setupScrollTracking();
+    requestAnimationFrame(() => {
+      const ff = document.getElementById("feed");
+      const cards = ff.querySelectorAll(".card");
+      if (cards[start]) ff.scrollTop = cards[start].offsetTop;
+      playBgVideo();
+      scheduleAutoSpeak();
+    });
+  } else {
+    feed.scrollTop = 0;
+    currentIndex = 0;
+  }
+  updateSaveButton();
 }
 
+function updateSaveButton() {
+  const btn = document.getElementById("saveBtnSide"), icon = document.getElementById("saveIcon");
+  if (!currentCards.length || currentTab === "search") return;
+  const id = currentCards[currentIndex % currentCards.length]?.id;
+  if (retained.has(id)) {
+    btn.classList.add("saved");
+    icon.innerHTML = '<i class="fa-solid fa-bookmark"></i>';
+  } else {
+    btn.classList.remove("saved");
+    icon.innerHTML = '<i class="fa-regular fa-bookmark"></i>';
+  }
+}
 
-/* INITIALIZATION */
+function setupScrollTracking() {
+  const feed = document.getElementById("feed");
+  const nf = feed.cloneNode(true);
+  feed.parentNode.replaceChild(nf, feed);
+  const ff = document.getElementById("feed"), fc = ff.querySelectorAll(".card");
+  const obs = new IntersectionObserver(es => {
+    es.forEach(e => {
+      if (e.isIntersecting) {
+        const idx = parseInt(e.target.dataset.index, 10);
+        if (idx !== currentIndex) {
+          stopSpeaking();
+          incrementScrollEXP();
+          lastSpokenId = null;
+        }
+        currentIndex = idx;
+        if (currentTab === "browse") {
+          savedIndex[currentGroup] = idx % Math.max(currentCards.length, 1);
+        }
+        updateSaveButton();
+        playBgVideo();
+        if (idx > 0 || scrolledToday) markScrolledToday();
+        scheduleAutoSpeak();
+      }
+    });
+  }, {root: ff, threshold: 0.55});
+  fc.forEach(c => obs.observe(c));
+  let st;
+  ff.addEventListener("scroll", () => {
+    clearTimeout(st);
+    st = setTimeout(() => {
+      if (ff.scrollTop > 40) markScrolledToday();
+      if (currentTab !== "browse" || isLooping) return;
+      const h = window.innerHeight, mid = currentCards.length * h;
+      if (ff.scrollTop >= mid - h * 0.5) {
+        isLooping = true;
+        ff.scrollTop = (ff.scrollTop - mid) + h * 0.1;
+        setTimeout(() => { isLooping = false; }, 50);
+      }
+    }, 80);
+  }, {passive: true});
+}
 
-function init(){
-  load();
-  initTheme();
+function toggleSave() {
+  if (!currentCards.length || currentTab === "search") return;
+  const id = currentCards[currentIndex % currentCards.length].id;
+  if (retained.has(id)) { retained.delete(id); showToast("Removed from Review"); }
+  else { retained.add(id); showToast("Saved to Review"); }
+  saveRetained(); updateSaveButton();
+  if (currentTab === "review") buildFeed();
+}
 
-  /* NAVIGATION */
-  document.querySelectorAll(".nav button").forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll(".nav button").forEach(x => x.classList.remove("active"));
-      btn.classList.add("active");
+function shareCard() {
+  if (!currentCards.length || currentTab === "search") return;
+  const t = currentCards[currentIndex % currentCards.length];
+  const themeColor = getComputedStyle(document.documentElement).getPropertyValue("--theme").trim() || "#1a1a1a";
+  const themeSoft = getComputedStyle(document.documentElement).getPropertyValue("--theme-soft").trim() || "#f0f0f0";
+  const canvas = document.createElement("canvas");
+  const w = 1080, h = 1920;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  function roundRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
+  }
+  function wrap(txt, x, y, mw, lh) {
+    const words = txt.split(" ");
+    let line = "", lines = [];
+    for (let n = 0; n < words.length; n++) {
+      const test = line + words[n] + " ";
+      if (ctx.measureText(test).width > mw && n > 0) { lines.push(line.trim()); line = words[n] + " "; }
+      else line = test;
+    }
+    lines.push(line.trim());
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
+    return lines.length * lh;
+  }
+  ctx.fillStyle = "#f0f4f0"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = themeColor + "18";
+  ctx.beginPath(); ctx.arc(200, 300, 280, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(900, 1600, 320, 0, Math.PI * 2); ctx.fill();
+  const cardX = 70, cardY = 220, cardW = w - 140, cardH = h - 480;
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, cardX, cardY, cardW, cardH, 28); ctx.fill();
+  ctx.fillStyle = themeColor; ctx.fillRect(cardX, cardY, cardW, 12);
+  let y = cardY + 80;
+  ctx.fillStyle = themeColor; ctx.font = "bold 48px -apple-system,sans-serif"; ctx.textAlign = "center";
+  const head = t.ref || t.title || "";
+  ctx.fillText(head, w / 2, y); y += 60;
+  const body = t.quote || t.text || "";
+  ctx.fillStyle = themeSoft;
+  const bodyLines = [];
+  ctx.font = "italic 36px -apple-system,sans-serif";
+  {
+    const words = body.split(" "); let line = "";
+    for (let n = 0; n < words.length; n++) {
+      const test = line + words[n] + " ";
+      if (ctx.measureText(test).width > cardW - 140 && n > 0) { bodyLines.push(line.trim()); line = words[n] + " "; }
+      else line = test;
+    }
+    bodyLines.push(line.trim());
+  }
+  const bodyH = Math.max(bodyLines.length * 50 + 48, 140);
+  roundRect(ctx, cardX + 40, y, cardW - 80, bodyH, 16); ctx.fill();
+  ctx.fillStyle = themeColor; ctx.fillRect(cardX + 40, y + 16, 8, bodyH - 32);
+  ctx.fillStyle = "#222"; ctx.font = "italic 36px -apple-system,sans-serif"; ctx.textAlign = "left";
+  bodyLines.forEach((l, i) => ctx.fillText(l, cardX + 70, y + 50 + i * 50));
+  y += bodyH + 50;
+  if (t.quote && t.text) {
+    ctx.fillStyle = "#555"; ctx.font = "32px -apple-system,sans-serif"; ctx.textAlign = "center";
+    y += wrap(t.text, w / 2, y, cardW - 100, 44) + 30;
+  }
+  ctx.fillStyle = themeColor; ctx.font = "bold 26px -apple-system,sans-serif"; ctx.textAlign = "center";
+  ctx.fillText((t.category || "").toUpperCase(), w / 2, y); y += 50;
+  ctx.fillStyle = "#999"; ctx.font = "24px -apple-system,sans-serif";
+  ctx.fillText(`${getSourceLabel(t)} ${t.num}`, w / 2, y);
+  ctx.fillStyle = themeColor; ctx.font = "bold 28px -apple-system,sans-serif";
+  ctx.fillText("Browse | Review | Search", w / 2, h - 100);
+  canvas.toBlob(blob => {
+    incrementShares();
+    const file = new File([blob], `card-${(t.ref || t.title || "share").replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      navigator.share({files: [file]}).catch(() => dl(canvas));
+    } else dl(canvas);
+  }, "image/png");
+}
+function dl(c) {
+  const a = document.createElement("a");
+  a.download = "scripture-card.png";
+  a.href = c.toDataURL("image/png");
+  a.click();
+  showToast("Image saved!");
+}
 
-      document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-      document.getElementById("page-"+btn.dataset.page).classList.add("active");
-      window.scrollTo(0,0);
+function renderAvatarDisplay() {
+  const el = document.getElementById("profileSideIcon");
+  if (!el) return;
+  el.innerHTML = "";
+  if (profile.avatarType === "image" && profile.avatar) {
+    const i = document.createElement("img"); i.src = profile.avatar; el.appendChild(i);
+  } else {
+    el.innerHTML = '<i class="fa-solid fa-user"></i>';
+  }
+}
+function updateAvatarPreview() {
+  const el = document.getElementById("avatarPreview"); if (!el) return;
+  el.innerHTML = "";
+  if (profile.avatarType === "image" && profile.avatar) {
+    const i = document.createElement("img"); i.src = profile.avatar; el.appendChild(i);
+  } else el.innerHTML = '<i class="fa-solid fa-user"></i>';
+}
+function updateUsernameDisplay() {
+  const el = document.getElementById("usernameDisplay");
+  if (el) el.textContent = profile.name || "Profile";
+}
+
+function openIntro(force) {
+  if (!force && localStorage.getItem("twltt_intro_hide") === "1") return;
+  document.getElementById("introDontShow").checked = false;
+  document.getElementById("introModal").classList.add("open");
+}
+function closeIntro() {
+  if (document.getElementById("introDontShow").checked) {
+    localStorage.setItem("twltt_intro_hide", "1");
+  }
+  document.getElementById("introModal").classList.remove("open");
+}
+
+function openProfileModal() {
+  document.getElementById("nameInput").value = profile.name;
+  document.getElementById("audioToggle").checked = audioOn;
+  const dt = document.getElementById("darkToggle");
+  if (dt) dt.checked = darkMode;
+  document.querySelectorAll(".seg-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.order === cardOrder);
+  });
+  buildThemeOptions();
+  updateAvatarPreview();
+  updateDayCounter();
+  updateTodayCheck();
+  updateTimeLeft();
+  document.getElementById("scrollEXP").textContent = totalScrolls;
+  document.getElementById("shareCount").textContent = totalShares;
+  document.getElementById("reviewStat").textContent = retained.size;
+  document.getElementById("profileModal").classList.add("open");
+}
+function closeProfileModal() {
+  document.getElementById("profileModal").classList.remove("open");
+}
+function buildThemeOptions() {
+  const c = document.getElementById("themeOptions");
+  c.innerHTML = "";
+  themes.forEach(t => {
+    const d = document.createElement("div");
+    d.className = "theme-option" + (profile.theme === t.color ? " selected" : "");
+    d.style.background = t.color;
+    d.title = t.name;
+    d.onclick = () => {
+      document.querySelectorAll(".theme-option").forEach(o => o.classList.remove("selected"));
+      d.classList.add("selected");
+      applyTheme(t.color);
+      updateAvatarPreview();
+    };
+    c.appendChild(d);
+  });
+}
+
+function setTab(tab) {
+  stopSpeaking();
+  playBgVideo();
+  if (currentTab === "browse" && tab !== "browse") {
+    savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
+  }
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  const idMap = { browse: "tabBrowse", review: "tabReview", search: "tabSearch" };
+  const el = document.getElementById(idMap[tab]);
+  if (el) el.classList.add("active");
+  buildFeed();
+  if (tab === "search") setTimeout(() => document.getElementById("searchInput").focus(), 100);
+}
+
+function setGroup(group) {
+  if (currentTab === "browse") {
+    savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
+  }
+  currentGroup = group;
+  document.querySelectorAll(".bottom-tab").forEach(b => b.classList.remove("active"));
+  const map = { learn: "groupLearn", reel: "groupReel", truth: "groupTruth" };
+  const el = document.getElementById(map[group]);
+  if (el) el.classList.add("active");
+  preferredVoice = pickBestVoice();
+  if (currentTab === "browse") buildFeed();
+  else setTab("browse");
+}
+
+function init() {
+  applyTheme(profile.theme);
+  applyDarkMode(darkMode);
+  const unlock = () => { playBgVideo(); document.removeEventListener("touchstart", unlock); document.removeEventListener("click", unlock); };
+  document.addEventListener("touchstart", unlock, { once: true, passive: true });
+  document.addEventListener("click", unlock, { once: true });
+  buildFeed();
+  renderAvatarDisplay();
+  updateUsernameDisplay();
+  updateDayCounter();
+  updateReviewCount();
+  updateTodayCheck();
+  setInterval(updateTimeLeft, 30000);
+
+  document.getElementById("tabBrowse").onclick = () => setTab("browse");
+  document.getElementById("tabReview").onclick = () => setTab("review");
+  document.getElementById("tabSearch").onclick = () => setTab("search");
+  document.getElementById("groupLearn").onclick = () => setGroup("learn");
+  document.getElementById("groupReel").onclick = () => setGroup("reel");
+  document.getElementById("groupTruth").onclick = () => setGroup("truth");
+  document.getElementById("saveBtnSide").onclick = toggleSave;
+  document.getElementById("shareBtn").onclick = shareCard;
+  document.getElementById("profileBtnSide").onclick = openProfileModal;
+  
+  document.getElementById("cancelBtn").onclick = closeProfileModal;
+  document.getElementById("introStartBtn").onclick = closeIntro;
+  document.querySelectorAll(".intro-card").forEach(card => {
+    card.onclick = () => {
+      closeIntro();
+      const key = card.dataset.intro;
+      if (key === "review") setTab("review");
+      else if (key === "search") setTab("search");
+      else setTab("browse");
     };
   });
-
-  /* ADD BILL */
-  document.getElementById("quickAdd").onclick = addBill;
-  document.getElementById("addBill").onclick = addBill;
-
-  /* SAVE PAYCHECK */
-  document.getElementById("savePay").onclick = () => {
-    state.settings.frequency = document.getElementById("frequency").value;
-    state.settings.payday = document.getElementById("payday").value;
-
-    // Snap Next Payday to the preferred weekday
-    let rawNext = document.getElementById("nextPay").value || today();
-    state.settings.nextPay = snapToWeekday(rawNext, state.settings.payday);
-
-    state.settings.payAmount = Number(document.getElementById("payAmount").value) || 0;
-    state.settings.checking = Number(document.getElementById("checking").value) || 0;
-    state.settings.savePerPay = Number(document.getElementById("savePerPay").value) || 0;
-
-    // Reflect the snapped date back into the input
-    document.getElementById("nextPay").value = state.settings.nextPay;
-
-    save();
-    render();
-    toast("Pay schedule saved");
+  document.getElementById("openIntroBtn").onclick = () => {
+    closeProfileModal();
+    openIntro(true);
   };
 
-  /* Live snap when Preferred Payday changes */
-  document.getElementById("payday").onchange = () => {
-    let raw = document.getElementById("nextPay").value || today();
-    let snapped = snapToWeekday(raw, document.getElementById("payday").value);
-    document.getElementById("nextPay").value = snapped;
-  };
-
-  /* Quick Update Checking Balance (Dashboard) */
-  document.getElementById("updateChecking").onclick = () => {
-    let val = Number(document.getElementById("quickChecking").value);
-    if(isNaN(val) || val < 0){
-      toast("Enter a valid checking balance.", "err");
-      return;
+  document.getElementById("saveBtn").onclick = () => {
+    profile.name = document.getElementById("nameInput").value.trim() || "Friend";
+    audioOn = document.getElementById("audioToggle").checked;
+    const dt = document.getElementById("darkToggle");
+    if (dt) applyDarkMode(dt.checked);
+    const prevOrder = cardOrder;
+    const activeSeg = document.querySelector(".seg-btn.active");
+    cardOrder = activeSeg ? activeSeg.dataset.order : "default";
+    localStorage.setItem("twltt_name", profile.name);
+    localStorage.setItem("twltt_avatar", profile.avatar);
+    localStorage.setItem("twltt_avatarType", profile.avatarType);
+    localStorage.setItem("twltt_theme", profile.theme);
+    localStorage.setItem("twltt_audio", audioOn ? "1" : "0");
+    localStorage.setItem("twltt_order", cardOrder);
+    if (prevOrder !== cardOrder) {
+      shuffledCache = { truth: null, learn: null, reel: null };
+      savedIndex = { truth: 0, learn: 0, reel: 0 };
     }
-    state.settings.checking = val;
-    // Keep the Paycheck page input in sync
-    document.getElementById("checking").value = val || "";
-    save();
-    render();
-    toast("Checking balance updated");
+    renderAvatarDisplay();
+    updateUsernameDisplay();
+    closeProfileModal();
+    if (currentTab === "browse") buildFeed();
+    if (audioOn) {
+      try { speechSynthesis.resume(); } catch (e) {}
+      setTimeout(() => speakCurrentCard(true), 100);
+    } else stopSpeaking();
+    showToast(audioOn ? "Audio on" : "Saved");
   };
 
-  /* SAVE SAVINGS */
-  document.getElementById("saveSavings").onclick = () => {
-    state.savings.current = Number(document.getElementById("savings").value) || 0;
-    state.savings.goal = Number(document.getElementById("goal").value) || 0;
-    state.savings.targetDate = document.getElementById("targetDate").value;
-    state.savings.contribution = Number(document.getElementById("contribution").value) || 0;
-    state.settings.savePerPay = state.savings.contribution;
-
-    save();
-    render();
-    toast("Savings plan saved");
+  document.getElementById("fileInput").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 2 * 1024 * 1024) { alert("Image under 2 MB please."); return; }
+    const r = new FileReader();
+    r.onload = ev => { profile.avatar = ev.target.result; profile.avatarType = "image"; updateAvatarPreview(); };
+    r.readAsDataURL(f);
+  };
+  document.getElementById("resetAvatarBtn").onclick = () => {
+    profile.avatar = ""; profile.avatarType = "icon"; updateAvatarPreview();
+  };
+  document.getElementById("profileModal").onclick = e => { if (e.target.id === "profileModal") closeProfileModal(); };
+  document.getElementById("introModal").onclick = e => { if (e.target.id === "introModal") closeIntro(); };
+  document.getElementById("orderSegment").onclick = e => {
+    const btn = e.target.closest(".seg-btn"); if (!btn) return;
+    document.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
   };
 
-  /* REPORT TYPE */
-  document.getElementById("reportType").onchange = e => {
-    document.getElementById("reportEndWrap").style.display =
-      e.target.value==="custom" ? "flex" : "none";
-  };
-
-  document.getElementById("generateReport").onclick = generateReport;
-
-  document.getElementById("printReport").onclick = () => {
-    generateReport();
-    setTimeout(() => window.print(), 100);
-  };
-
-  /* EXPORT */
-  document.getElementById("exportAll").onclick = exportAll;
-  document.getElementById("exportBills").onclick = exportBills;
-
-  /* IMPORT */
-  document.getElementById("importAll").onclick = () =>
-    document.getElementById("allInput").click();
-
-  document.getElementById("importBills").onclick = () =>
-    document.getElementById("billInput").click();
-
-  /* FULL IMPORT */
-  document.getElementById("allInput").onchange = e =>
-    readFile(e.target, data => {
-      if(!confirm("Replace your current Redline data with this backup?")) return;
-
-      if(!data || data.schemaVersion!==1 || !Array.isArray(data.bills)){
-        toast("Invalid Redline backup.", "err");
-        return;
-      }
-
-      state = data;
-      save();
-      render();
-      toast("Backup restored");
-    });
-
-  /* BILL IMPORT */
-  document.getElementById("billInput").onchange = e =>
-    readFile(e.target, data => {
-      if(!Array.isArray(data.bills)){
-        toast("Invalid bill backup.", "err");
-        return;
-      }
-
-      state.bills = data.bills;
-      save();
-      render();
-      toast("Bills imported");
-    });
-
-  /* CLEAR */
-  document.getElementById("clearData").onclick = () => {
-    if(confirm("Erase ALL Redline data from this browser? This cannot be undone unless you have a backup.")){
-      localStorage.removeItem(KEY);
-      location.reload();
-    }
-  };
-
-  /* FIRST RUN */
-  if(!localStorage.getItem(KEY)){
-    toast("Welcome to Redline â add your first bill to begin.");
+  const searchInput = document.getElementById("searchInput");
+  const clearBtn = document.getElementById("clearSearch");
+  let searchTimer;
+  function runSearch() {
+    searchQuery = (searchInput.value || "").trim();
+    clearBtn.style.display = searchQuery ? "block" : "none";
+    if (currentTab !== "search") setTab("search");
+    else buildFeed();
   }
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 150);
+  });
+  searchInput.addEventListener("keyup", e => { if (e.key === "Enter") { clearTimeout(searchTimer); runSearch(); } });
+  clearBtn.onclick = () => {
+    searchInput.value = ""; searchQuery = ""; clearBtn.style.display = "none";
+    if (currentTab === "search") buildFeed();
+    searchInput.focus();
+  };
 
-  render();
+  openIntro(false);
+  if (!profile.name) setTimeout(() => { if (!profile.name) openProfileModal(); }, 2500);
 }
-
-
 init();
