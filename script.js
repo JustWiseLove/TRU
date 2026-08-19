@@ -253,36 +253,66 @@ function scheduleAutoSpeak() {
 
 function pauseAllVideos() {
   document.querySelectorAll("video.reel-video").forEach(v => {
-    try { v.pause(); } catch (e) {}
+    try {
+      v.pause();
+      v.removeAttribute("autoplay");
+      // free decoder memory on off-screen clips
+      if (v.preload !== "none") v.preload = "none";
+    } catch (e) {}
   });
   activeVideo = null;
 }
 function playVisibleVideo() {
   const feed = document.getElementById("feed");
   if (!feed) return;
-  const cards = feed.querySelectorAll(".card");
+  const cards = [...feed.querySelectorAll(".card")];
   const card = cards[currentIndex];
+
+  // Pause every video that is not on the active card
   document.querySelectorAll("video.reel-video").forEach(v => {
-    if (!card || !card.contains(v)) {
-      try { v.pause(); } catch (e) {}
-    }
+    if (card && card.contains(v)) return;
+    try {
+      v.pause();
+      v.preload = "none";
+    } catch (e) {}
   });
+
   if (!card) return;
   const vid = card.querySelector("video.reel-video");
-  if (!vid) return;
+  if (!vid) {
+    activeVideo = null;
+    return;
+  }
+
   activeVideo = vid;
   vid.muted = true;
   vid.defaultMuted = true;
   vid.playsInline = true;
   vid.setAttribute("playsinline", "");
   vid.setAttribute("webkit-playsinline", "");
+  vid.preload = "auto";
+
+  // Lightly warm the next card's video only (metadata), not full download
+  const next = cards[currentIndex + 1];
+  if (next) {
+    const nv = next.querySelector("video.reel-video");
+    if (nv) {
+      try { nv.preload = "metadata"; } catch (e) {}
+    }
+  }
+
   const tryPlay = () => {
+    if (activeVideo !== vid) return;
     const p = vid.play();
     if (p && p.catch) p.catch(() => {
-      // retry once after a short delay (iOS sometimes needs it)
-      setTimeout(() => { try { vid.play().catch(() => {}); } catch (e) {} }, 250);
+      setTimeout(() => {
+        if (activeVideo === vid) {
+          try { vid.play().catch(() => {}); } catch (e) {}
+        }
+      }, 250);
     });
   };
+
   if (vid.readyState >= 2) tryPlay();
   else {
     vid.addEventListener("loadeddata", tryPlay, { once: true });
@@ -343,7 +373,7 @@ function buildFeed() {
 
     if (t.video) {
       card.innerHTML = `
-        <video class="reel-video" src="${t.video}" muted defaultMuted loop playsinline webkit-playsinline preload="auto" autoplay></video>
+        <video class="reel-video" src="${t.video}" muted defaultMuted loop playsinline webkit-playsinline preload="none"></video>
         <div class="reel-scrim"></div>
         <div class="card-content">
           <div class="reel-title">${t.title || ""}</div>
