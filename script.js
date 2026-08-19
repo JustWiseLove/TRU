@@ -334,7 +334,7 @@ function buildFeed() {
           <div class="category">${t.category || ""}</div>
           <div class="reel-title">${t.title || ""}</div>
           <div class="truth-text">${t.text || ""}</div>
-          <div class="card-meta">${label} Â· ${t.num} of ${currentCards.length}</div>`;
+          <div class="card-meta">${label} | ${t.num} of ${currentCards.length}</div>`;
     } else if (currentGroup === "learn") {
       // Learn â teaching first, then scripture support
       body = `
@@ -342,7 +342,7 @@ function buildFeed() {
           <div class="learn-point">${t.text || ""}</div>
           <div class="scripture-ref">${t.ref || ""}</div>
           <div class="scripture-quote">${t.quote || ""}</div>
-          <div class="card-meta">${label} Â· ${t.num} of ${currentCards.length}</div>`;
+          <div class="card-meta">${label} | ${t.num} of ${currentCards.length}</div>`;
     } else {
       // Truth â scripture-forward
       body = `
@@ -350,7 +350,7 @@ function buildFeed() {
           <div class="scripture-ref">${t.ref || t.title || ""}</div>
           <div class="scripture-quote">${t.quote || ""}</div>
           <div class="truth-text">${t.text || ""}</div>
-          <div class="card-meta">${label} Â· ${t.num} of ${currentCards.length}</div>`;
+          <div class="card-meta">${label} | ${t.num} of ${currentCards.length}</div>`;
     }
     card.innerHTML = `
         <div class="card-content card-content--${groupClass}">${body}
@@ -513,7 +513,7 @@ function shareCard() {
   ctx.fillStyle = "#999"; ctx.font = "24px -apple-system,sans-serif";
   ctx.fillText(`${getSourceLabel(t)} ${t.num}`, w / 2, y);
   ctx.fillStyle = themeColor; ctx.font = "bold 28px -apple-system,sans-serif";
-  ctx.fillText("Browse Â· Review Â· Search", w / 2, h - 100);
+  ctx.fillText("Browse | Review | Search", w / 2, h - 100);
   canvas.toBlob(blob => {
     incrementShares();
     const file = new File([blob], `card-${(t.ref || t.title || "share").replace(/[^a-z0-9]/gi, "-")}.png`, {type: "image/png"});
