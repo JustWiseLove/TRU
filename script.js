@@ -34,7 +34,6 @@ let cardOrder = localStorage.getItem("twltt_order") || "default";
 let shuffledCache = { truth: null, learn: null, reel: null };
 let autoSpeakTimer = null;
 let lastSpokenId = null;
-let activeVideo = null;
 
 function todayKey() {
   const est = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
@@ -251,78 +250,31 @@ function scheduleAutoSpeak() {
   }, 600);
 }
 
-function pauseAllVideos() {
-  document.querySelectorAll("video.reel-video").forEach(v => {
-    try {
-      v.pause();
-      v.removeAttribute("autoplay");
-      // free decoder memory on off-screen clips
-      if (v.preload !== "none") v.preload = "none";
-    } catch (e) {}
-  });
-  activeVideo = null;
+function ensureBgVideo() {
+  const v = document.getElementById("bgVideo");
+  if (!v) return null;
+  v.muted = true;
+  v.defaultMuted = true;
+  v.playsInline = true;
+  v.setAttribute("playsinline", "");
+  v.setAttribute("webkit-playsinline", "");
+  return v;
 }
-function playVisibleVideo() {
-  const feed = document.getElementById("feed");
-  if (!feed) return;
-  const cards = [...feed.querySelectorAll(".card")];
-  const card = cards[currentIndex];
-
-  // Pause every video that is not on the active card
-  document.querySelectorAll("video.reel-video").forEach(v => {
-    if (card && card.contains(v)) return;
-    try {
-      v.pause();
-      v.preload = "none";
-    } catch (e) {}
+function playBgVideo() {
+  const v = ensureBgVideo();
+  if (!v) return;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => {
+    setTimeout(() => { try { v.play().catch(() => {}); } catch (e) {} }, 200);
   });
-
-  if (!card) return;
-  const vid = card.querySelector("video.reel-video");
-  if (!vid) {
-    activeVideo = null;
-    return;
-  }
-
-  activeVideo = vid;
-  vid.muted = true;
-  vid.defaultMuted = true;
-  vid.playsInline = true;
-  vid.setAttribute("playsinline", "");
-  vid.setAttribute("webkit-playsinline", "");
-  vid.preload = "auto";
-
-  // Lightly warm the next card's video only (metadata), not full download
-  const next = cards[currentIndex + 1];
-  if (next) {
-    const nv = next.querySelector("video.reel-video");
-    if (nv) {
-      try { nv.preload = "metadata"; } catch (e) {}
-    }
-  }
-
-  const tryPlay = () => {
-    if (activeVideo !== vid) return;
-    const p = vid.play();
-    if (p && p.catch) p.catch(() => {
-      setTimeout(() => {
-        if (activeVideo === vid) {
-          try { vid.play().catch(() => {}); } catch (e) {}
-        }
-      }, 250);
-    });
-  };
-
-  if (vid.readyState >= 2) tryPlay();
-  else {
-    vid.addEventListener("loadeddata", tryPlay, { once: true });
-    try { vid.load(); } catch (e) {}
-  }
 }
-
+function pauseBgVideo() {
+  const v = document.getElementById("bgVideo");
+  if (v) try { v.pause(); } catch (e) {}
+}
 function buildFeed() {
   const feed = document.getElementById("feed");
-  pauseAllVideos();
+  playBgVideo();
   feed.innerHTML = "";
   feed.classList.toggle("search-mode", currentTab === "search");
   const searchBar = document.getElementById("searchBar");
@@ -361,9 +313,10 @@ function buildFeed() {
   const isSnap = currentTab === "browse";
   const toRender = isSnap ? [...currentCards, ...currentCards] : currentCards;
 
+  const frag = document.createDocumentFragment();
   toRender.forEach((t, i) => {
     const card = document.createElement("div");
-    card.className = "card" + (t.video ? " reel-card" : "");
+    card.className = "card reel-card";
     card.dataset.index = i;
     card.dataset.id = t.id;
     const di = (i % currentCards.length) + 1;
@@ -371,27 +324,40 @@ function buildFeed() {
       ? getSourceLabel(t)
       : (currentGroup === "learn" ? "Learn" : currentGroup === "reel" ? "Reel" : "Truth");
 
-    if (t.video) {
-      card.innerHTML = `
-        <video class="reel-video" src="${t.video}" muted defaultMuted loop playsinline webkit-playsinline preload="none"></video>
-        <div class="reel-scrim"></div>
-        <div class="card-content">
+    const hint = (i === 0 && isSnap) ? '<div class="swipe-hint">Swipe up</div>' : '';
+    const groupClass = currentGroup || "truth";
+    card.setAttribute("data-group", groupClass);
+    let body;
+    if (t.title && !t.ref) {
+      // Reel â bold title, centered insight
+      body = `
+          <div class="category">${t.category || ""}</div>
           <div class="reel-title">${t.title || ""}</div>
-          <div class="truth-text">${t.text}</div>
-          <div class="category">${t.category}</div>
-          <div class="card-meta">${label} ${t.num} | Card ${di} of ${currentCards.length}</div>
-        </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
+          <div class="truth-text">${t.text || ""}</div>
+          <div class="card-meta">${label} Â· ${t.num} of ${currentCards.length}</div>`;
+    } else if (currentGroup === "learn") {
+      // Learn â teaching first, then scripture support
+      body = `
+          <div class="category">${t.category || ""}</div>
+          <div class="learn-point">${t.text || ""}</div>
+          <div class="scripture-ref">${t.ref || ""}</div>
+          <div class="scripture-quote">${t.quote || ""}</div>
+          <div class="card-meta">${label} Â· ${t.num} of ${currentCards.length}</div>`;
     } else {
-      card.innerHTML = `<div class="card-content">
-        <div class="scripture-ref">${t.ref}</div>
-        <div class="scripture-quote">${t.quote}</div>
-        <div class="truth-text">${t.text}</div>
-        <div class="category">${t.category}</div>
-        <div class="card-meta">${label} ${t.num} | Card ${di} of ${currentCards.length}</div>
-      </div>${i === 0 && isSnap ? '<div class="swipe-hint">Swipe up</div>' : ''}`;
+      // Truth â scripture-forward
+      body = `
+          <div class="category">${t.category || ""}</div>
+          <div class="scripture-ref">${t.ref || t.title || ""}</div>
+          <div class="scripture-quote">${t.quote || ""}</div>
+          <div class="truth-text">${t.text || ""}</div>
+          <div class="card-meta">${label} Â· ${t.num} of ${currentCards.length}</div>`;
     }
-    feed.appendChild(card);
+    card.innerHTML = `
+        <div class="card-content card-content--${groupClass}">${body}
+        </div>${hint}`;
+    frag.appendChild(card);
   });
+  feed.appendChild(frag);
 
   if (isSnap) {
     const maxIdx = currentCards.length;
@@ -403,7 +369,7 @@ function buildFeed() {
       const ff = document.getElementById("feed");
       const cards = ff.querySelectorAll(".card");
       if (cards[start]) ff.scrollTop = cards[start].offsetTop;
-      playVisibleVideo();
+      playBgVideo();
       scheduleAutoSpeak();
     });
   } else {
@@ -445,7 +411,7 @@ function setupScrollTracking() {
           savedIndex[currentGroup] = idx % Math.max(currentCards.length, 1);
         }
         updateSaveButton();
-        playVisibleVideo();
+        playBgVideo();
         if (idx > 0 || scrolledToday) markScrolledToday();
         scheduleAutoSpeak();
       }
@@ -639,7 +605,7 @@ function buildThemeOptions() {
 
 function setTab(tab) {
   stopSpeaking();
-  pauseAllVideos();
+  playBgVideo();
   if (currentTab === "browse" && tab !== "browse") {
     savedIndex[currentGroup] = currentIndex % Math.max(currentCards.length, 1);
   }
@@ -669,6 +635,9 @@ function setGroup(group) {
 function init() {
   applyTheme(profile.theme);
   applyDarkMode(darkMode);
+  const unlock = () => { playBgVideo(); document.removeEventListener("touchstart", unlock); document.removeEventListener("click", unlock); };
+  document.addEventListener("touchstart", unlock, { once: true, passive: true });
+  document.addEventListener("click", unlock, { once: true });
   buildFeed();
   renderAvatarDisplay();
   updateUsernameDisplay();
